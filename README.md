@@ -14,6 +14,10 @@
 | 门店主控固件 | ESP32-S3（Arduino） | `firmware/store-controller/` | 人机界面：按键、语音、屏幕、HX711 称重、RFID、USB 扫码枪、OTA |
 | 视觉节点 | XIAO ESP32-S3 Sense（OV3660） | `firmware/vision-node/` | 摄像头取图 + Edge Impulse 水果分类，只上报概率，不做判定 |
 | 热敏打印机 | ESP32-S3（ESP-IDF） | `firmware/thermal-printer/` | 轮询打印任务，打印 384 点单色光栅小票 |
+| AI 助理 | ESP32-S3（ESP-IDF） | `firmware/mimiclaw/` | LLM Agent、商家/顾客双角色、WebSocket 18789、人工服务告警 18791 |
+
+> `firmware/mimiclaw/` 是开源项目 [memovai/mimiclaw](https://github.com/memovai/mimiclaw)（MIT）的改造副本，
+> 版权归原作者。改了什么、怎么编译、密钥怎么配，见该目录的 `MODIFICATIONS.md`。
 
 **为什么保留 ESP32-S3？** HX711 是位翻转（bit-bang）时序、I2S 麦克风/喇叭需要硬实时 DMA 和 GPIO 中断——这些在 Linux 上要么做不稳，要么要额外写内核驱动。放到 RK3568 上收益极低、风险极高。所以"换主控"换的是**决策与业务逻辑**，不是把硬件时序也搬过去。
 
@@ -26,7 +30,8 @@
 ├── firmware/                       ESP32 侧固件
 │   ├── store-controller/           ESP32-S3 Arduino 主控（原 Work7_20）
 │   ├── vision-node/                XIAO ESP32-S3 Sense 视觉节点
-│   └── thermal-printer/            ESP32-S3 ESP-IDF 热敏打印机（原 re_min）
+│   ├── thermal-printer/            ESP32-S3 ESP-IDF 热敏打印机（原 re_min）
+│   └── mimiclaw/                   ESP32-S3 ESP-IDF AI 助理（上游 memovai/mimiclaw 的改造副本）
 │
 ├── rk3568/                         RK3568 板端
 │   ├── store-backend/              8094 商品/购物车/订单 + 8095 扫码 + 8096 OCR

@@ -1,0 +1,14 @@
+# cloudflared 隧道配置示例。真实配置（含隧道 UUID 和凭据文件）不入库。
+# 把下面的占位符换成你自己的值，另存为 cloudflared-admin.yml。
+
+tunnel: <你的隧道 UUID>
+credentials-file: <你的凭据 JSON 路径>
+
+ingress:
+  - hostname: <你的域名>
+    service: http://<内网IP>:80
+  - hostname: <你的域名>
+    service: http://<内网IP>:18789
+  - hostname: <你的域名>
+    service: http://<内网IP>:80
+  - service: http_status:404
