@@ -59,6 +59,21 @@ git clone https://github.com/jokerking001/rk3568-smart-supermarket.git
 cd rk3568-smart-supermarket
 ```
 
+**给队友的一页速查**（第一次上手，四条命令）：
+
+```bash
+git clone https://github.com/jokerking001/rk3568-smart-supermarket.git
+cd rk3568-smart-supermarket
+bash tools/install-hooks.sh                      # 装提交前守卫（每人一次，钩子不进版本库）
+# 配密钥，见 3.2 —— 不配的话固件编不过，这是最常见的一个坑
+```
+
+> **不需要 fork，不需要邀请。** 只想看代码 / 跑 RK3568 那部分的话，clone 完就能用。
+> 只有要往仓库里推代码，才需要被加成 collaborator（见下）。
+>
+> 如果 `github.com` 连不上（国内很常见）：挂代理，或改用
+> `https://ghproxy.net/https://github.com/...` 这类镜像前缀拉取。
+
 > 想改成 SSH 也可以（配一次就不用输凭据）：
 >
 > ```bash
@@ -91,12 +106,16 @@ cd rk3568-smart-supermarket
 所有密钥、WiFi、内网地址都从源码里抽出来了，只在本地存在：
 
 ```bash
-cd firmware/store-controller   && cp secrets.h.example secrets.h
-cd ../vision-node              && cp secrets.h.example secrets.h
-cd ../thermal-printer/main     && cp secrets.h.example secrets.h
+# 在仓库根目录执行（四条命令，逐个照抄即可）
+cp firmware/store-controller/secrets.h.example      firmware/store-controller/secrets.h
+cp firmware/vision-node/secrets.h.example           firmware/vision-node/secrets.h
+cp firmware/thermal-printer/main/secrets.h.example  firmware/thermal-printer/main/secrets.h
+cp firmware/mimiclaw/main/mimi_secrets.h.example    firmware/mimiclaw/main/mimi_secrets.h
 ```
 
-然后打开这三个 `secrets.h`，把占位值换成真实值。**`secrets.h` 已被 `.gitignore` 忽略，不会进版本库。**
+然后打开这四个文件，把占位值换成真实值。**它们都已被 `.gitignore` 忽略，不会进版本库**
+（前三个由根目录 `.gitignore` 的 `secrets.h` 拦住，`mimi_secrets.h` 由
+`firmware/mimiclaw/.gitignore` 拦住 —— 名字不同，别以为漏了）。
 
 需要填的东西：
 
@@ -109,6 +128,14 @@ cd ../thermal-printer/main     && cp secrets.h.example secrets.h
 | store-controller | `MIMICLAW_STORE_KEY` | 管理接口鉴权头，**板端要填一样的值** |
 | vision-node | `WIFI_SSID_CFG` / `WIFI_PASSWORD_CFG` / `FUSION_URL_CFG` | RK3568 的融合服务地址 |
 | thermal-printer | `WIFI_SSID` / `WIFI_PASSWORD` / `CONTROLLER_BASE_URL` | 主控地址 |
+| mimiclaw | `MIMI_SECRET_WIFI_SSID` / `MIMI_SECRET_WIFI_PASS` | 同门店路由器 |
+| mimiclaw | `MIMI_SECRET_API_KEY` / `MIMI_SECRET_MODEL` / `MIMI_SECRET_MODEL_PROVIDER` | LLM 供应商与密钥 |
+| mimiclaw | `MIMI_SECRET_STORE_URL` | 指向主控，**RK3568 迁移后要改** |
+| mimiclaw | `MIMI_SECRET_TG_TOKEN` / `FEISHU_*` / `SEARCH_KEY` / `TAVILY_KEY` | 不用就留空 |
+
+> `firmware/mimiclaw/main/mimi_secrets.h.example` 里带注释说明每个宏的用途，
+> 照着填即可。**MimiClaw 原本是独立上游项目，上游地址与本地改动见
+> `firmware/mimiclaw/MODIFICATIONS.md`。**
 
 > ⚠️ vision-node 的宏名带 `_CFG` 后缀是**故意的**：`.ino` 里已有同名的 `static` 变量，宏名撞车会被预处理器展开成语法错误。
 
@@ -298,14 +325,17 @@ python tools/test_check_py37.py
 - ⬜ 8 类模型训练与 RKNN 转换（卡在转换机口令）
 - ⬜ 打印链路选型：384 点光栅 vs ESC/POS + GBK
 - ⬜ `top1` 与 `normalize` 两种概率模式二选一
-- ⬜ 原 81 个接口里仍有一部分未在 RK3568 侧实现
+- ⬜ 原 81 个接口中，**24 个已覆盖、5 个废弃/移出主线、52 个仍缺**（逐条比对结果见 `docs/RK3568-迁移总览.md` §6）
 
 **明确不做**
 
 - ❌ 板端本地部署视觉大模型（NPU 只有 ~0.8 TOPS、内存 4GB，跑不动）
 - ❌ 把 HX711 / I2S 搬到 RK3568（实时时序，留在 MCU）
 
-**关于 `mimiclaw`**：原工程里的 `mimiclaw`（未纳入本仓库） 是开源项目 [`memovai/mimiclaw`](https://github.com/memovai/mimiclaw) 的克隆，不是本项目的代码，**没有放进这个仓库**。需要的话自行 clone 上游。
+**关于 `firmware/mimiclaw`**：它源自开源项目 [`memovai/mimiclaw`](https://github.com/memovai/mimiclaw)
+（MIT License, Copyright (c) 2026 Ziboyan Wang），**已纳入本仓库**，是四个组成部分之一。
+上游归属、本地改动清单、编译方法、密钥说明见 `firmware/mimiclaw/MODIFICATIONS.md`。
+**`LICENSE` 必须保留，不要删。**
 
 ---
 
