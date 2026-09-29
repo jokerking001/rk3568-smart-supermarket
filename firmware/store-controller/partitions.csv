@@ -1,0 +1,8 @@
+# Minimal SPIFFS with OTA — 1.92MB APP per slot, 128KB SPIFFS
+# 适配项目: 固件 1581025 bytes, 需要 >1.55MB APP
+nvs,      data, nvs,     0x9000,  0x5000,
+otadata,  data, ota,     0xe000,  0x2000,
+app0,     app,  ota_0,   0x10000, 0x1E0000,
+app1,     app,  ota_1,   0x1F0000,0x1E0000,
+spiffs,   data, spiffs,  0x3D0000,0x20000,
+coredump, data, coredump,0x3F0000,0x10000,

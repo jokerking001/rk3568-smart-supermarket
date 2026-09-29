@@ -1,0 +1,16 @@
+[Unit]
+Description=RK3568 OCR fallback service (brand / spec / capacity, barcode fallback)
+After=network.target rk3568-store.service rk3568-vision.service
+Wants=rk3568-store.service
+
+[Service]
+Type=simple
+User=linaro
+Group=linaro
+WorkingDirectory=/home/linaro/ai/ocr
+ExecStart=/usr/bin/python3 /home/linaro/ai/ocr/ocr_service.py --port 8096
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

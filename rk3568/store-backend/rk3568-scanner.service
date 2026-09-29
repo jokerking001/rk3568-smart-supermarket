@@ -1,0 +1,19 @@
+[Unit]
+Description=RK3568 USB barcode scanner service (primary SKU confirmation source)
+After=network.target rk3568-store.service
+Wants=rk3568-store.service
+
+[Service]
+Type=simple
+User=linaro
+Group=linaro
+# evdev lives in /dev/input (root:input 0660) and the serial transport needs the
+# CDC device, so both groups are granted without changing the account's groups.
+SupplementaryGroups=input dialout
+WorkingDirectory=/home/linaro/ai/scanner
+ExecStart=/usr/bin/python3 /home/linaro/ai/scanner/scanner_service.py --port 8095 --store-url http://127.0.0.1:8094
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

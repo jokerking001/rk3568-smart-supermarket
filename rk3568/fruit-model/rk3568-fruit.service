@@ -1,0 +1,18 @@
+[Unit]
+Description=RK3568 fruit detection service (runs alongside the COCO vision service)
+After=network.target rk3568-vision.service
+Wants=rk3568-vision.service
+
+[Service]
+Type=simple
+# Must run as linaro: the RKNN runtime (rknnlite) lives in that account's user
+# site-packages, so root would fail with ModuleNotFoundError.
+User=linaro
+Group=video
+WorkingDirectory=/home/linaro/ai/fruit
+ExecStart=/usr/bin/python3 /home/linaro/ai/fruit/fruit_service.py --port 8089
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

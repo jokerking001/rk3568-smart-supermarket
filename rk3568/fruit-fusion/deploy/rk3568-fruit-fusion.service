@@ -1,0 +1,31 @@
+[Unit]
+Description=RK3568 fruit vision+weight fusion service (8099)
+Documentation=file:///home/linaro/ai/fruit-fusion/README.md
+# 判定要读 8094 的购物车接口，但**不强依赖**：
+# 收银后端挂了它照样能判定，只是转发失败并在响应里标出来。
+# 内置桥接要读 8089，同样不强依赖：源挂了桥接只是跳过，不污染观测窗口。
+After=network.target
+Wants=rk3568-store.service rk3568-fruit.service
+
+[Service]
+Type=simple
+User=linaro
+Group=linaro
+WorkingDirectory=/home/linaro/ai/fruit-fusion
+# --bridge-url auto = 用 fruit_fusion_bridge.DEFAULT_FRUIT_RESULT_URL
+#                     即 http://127.0.0.1:8089/api/fruit/result
+# 桥接按原工程 INFERENCE_INTERVAL_MS = 1400 ms 的节奏喂观测，
+# 5 帧窗口约 7 秒填满 —— 这个节奏是判定行为的一部分，别随手调小。
+ExecStart=/usr/bin/python3 /home/linaro/ai/fruit-fusion/fruit_fusion_service.py \
+    --host 0.0.0.0 --port 8099 \
+    --bridge-url auto
+Restart=always
+RestartSec=3
+# 判定逻辑要拿实时调度，别被省电策略拖慢
+Nice=-5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=rk3568-fruit-fusion
+
+[Install]
+WantedBy=multi-user.target

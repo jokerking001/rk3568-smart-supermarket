@@ -1,0 +1,97 @@
+# ============================================================
+#  .gitignore —— RK3568 智慧超市
+# ============================================================
+
+# ---------- 私密配置（最重要的一条）----------
+# 真实密钥只存在于本地 secrets.h，永不入库。
+# 模板 secrets.h.example 是要提交的，不要一起忽略掉。
+secrets.h
+*.local.h
+.env
+.env.*
+*.pem
+*.key
+*.p12
+id_rsa*
+id_ed25519*
+credentials.json
+token.json
+
+
+# ---------- 构建产物 ----------
+build/
+build-*/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+managed_components/
+dependencies.lock
+.pio/
+.pioenvs/
+.piolibdeps/
+sdkconfig.old
+*.bin
+*.elf
+*.map
+*.hex
+*.o
+*.a
+*.d
+
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+ENV/
+.python-version
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+
+# ---------- 模型与数据集（体积大，走网盘/板子传）----------
+# 训练脚本和 RKNN 转换脚本要提交，权重和产物不提交。
+*.pt
+*.pth
+*.onnx
+*.rknn
+*.tflite
+*.whl
+*.tar
+*.tar.gz
+*.zip
+dist/
+calib/
+calib_640/
+calib_src/
+dataset/raw/
+dataset/*/images/
+dataset/*/labels/
+runs/
+weights/
+
+
+# ---------- 编辑器 / 系统 ----------
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+
+# ---------- 临时文件 / 日志 ----------
+*.log
+*.tmp
+*.bak
+*.orig
+*.rej
+.codex-backup-*/
+*.codex-backup-*

@@ -1,0 +1,10 @@
+[
+  {"label": "apple",      "name": "苹果",   "typical_g": 180.0,  "tolerance_g": 90.0},
+  {"label": "banana",     "name": "香蕉",   "typical_g": 140.0,  "tolerance_g": 80.0},
+  {"label": "grapes",     "name": "葡萄",   "typical_g": 300.0,  "tolerance_g": 220.0},
+  {"label": "orange",     "name": "橙子",   "typical_g": 200.0,  "tolerance_g": 100.0},
+  {"label": "pear",       "name": "梨",     "typical_g": 220.0,  "tolerance_g": 110.0},
+  {"label": "kiwi",       "name": "猕猴桃", "typical_g": 100.0,  "tolerance_g": 50.0},
+  {"label": "strawberry", "name": "草莓",   "typical_g": 250.0,  "tolerance_g": 150.0},
+  {"label": "watermelon", "name": "西瓜",   "typical_g": 3000.0, "tolerance_g": 1500.0}
+]

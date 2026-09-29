@@ -1,0 +1,22 @@
+[Unit]
+Description=RK3568 识图问答（板端代理，调用电脑侧视觉大模型）
+Documentation=file:/home/linaro/ai/vlm/README.md
+After=network-online.target rk3568-vision.service
+Wants=network-online.target rk3568-vision.service
+
+[Service]
+Type=simple
+User=linaro
+Group=linaro
+WorkingDirectory=/home/linaro/ai/vlm
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /home/linaro/ai/vlm/vlm_client_service.py --port 8092
+Restart=always
+RestartSec=5
+TimeoutStopSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=rk3568-vlm
+
+[Install]
+WantedBy=multi-user.target

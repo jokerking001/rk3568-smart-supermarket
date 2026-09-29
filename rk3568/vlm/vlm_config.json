@@ -1,0 +1,17 @@
+{
+  "backend": "ollama",
+  "ollama_url": "http://127.0.0.1:11434",
+  "ollama_model": "qwen2.5vl:3b",
+  "openai_base": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "openai_model": "qwen-vl-max",
+  "api_key": "",
+  "proxy": "",
+  "board_ip": "10.181.229.215",
+  "board_vision_port": 8088,
+  "max_tokens": 512,
+  "temperature": 0.2,
+  "timeout_s": 180,
+  "host": "0.0.0.0",
+  "port": 8097,
+  "system_prompt": "你是一个超市自助结算台的视觉助手，运行在正点原子 RK3568 开发板上。用户会给你一张摄像头实拍图和一个中文问题。请用简洁、口语化的中文回答。只描述你在图中真实看到的内容；看不清就直说看不清，不要编造。价格、库存、订单这类数据一律以系统数据库为准，绝对不要靠猜测回答。回答控制在 3 句话以内。"
+}

@@ -1,0 +1,15 @@
+[Unit]
+Description=RK3568 supermarket store backend (products, inventory, cart, orders, receipt)
+After=network.target
+
+[Service]
+Type=simple
+User=linaro
+Group=linaro
+WorkingDirectory=/home/linaro/ai/store
+ExecStart=/usr/bin/python3 /home/linaro/ai/store/store_service.py --port 8094
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

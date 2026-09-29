@@ -1,0 +1,64 @@
+# ============================================================
+#  .gitattributes —— 统一行尾，避免 Windows 队友拉下来跑不了
+# ============================================================
+#
+# 背景：本机 git 全局开了 core.autocrlf=true，检出时会把 LF 换成 CRLF。
+# 这对 .sh 是致命的 —— 板子上 /bin/sh 会把 \r 当成命令的一部分，
+# 报 "not found" 或者莫名其妙的语法错误。
+#
+# 所以这里显式规定：仓库里一律存 LF，脚本类必须检出成 LF。
+
+# 默认：自动识别文本，统一按 LF 存取
+* text=auto eol=lf
+
+# 这些必须是 LF，否则在 Linux/板子上跑不了
+*.sh    text eol=lf
+*.py    text eol=lf
+*.service text eol=lf
+*.c     text eol=lf
+*.h     text eol=lf
+*.hpp   text eol=lf
+*.cpp   text eol=lf
+*.ino   text eol=lf
+*.md    text eol=lf
+*.json  text eol=lf
+*.txt   text eol=lf
+*.csv   text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+*.cmake text eol=lf
+*.csv   text eol=lf
+*.defaults text eol=lf
+*.projbuild text eol=lf
+Makefile text eol=lf
+CMakeLists.txt text eol=lf
+
+# Windows 专有脚本才用 CRLF
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+# 二进制：别动
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pdf   binary
+*.zip   binary
+*.gz    binary
+*.tar   binary
+*.bin   binary
+*.elf   binary
+*.hex   binary
+*.a     binary
+*.o     binary
+*.so    binary
+*.dll   binary
+*.exe   binary
+*.pt    binary
+*.pth   binary
+*.onnx  binary
+*.rknn  binary
+*.tflite binary
+*.whl   binary
