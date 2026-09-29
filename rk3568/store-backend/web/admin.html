@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>商家管理中心</title>
+<!-- 用纯Canvas画趋势图，无需CDN -->
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'PingFang SC','Microsoft YaHei',sans-serif;background:#f0f2f5;min-height:100vh;color:#333}
+.topbar{background:linear-gradient(135deg,#1a1a2e,#16213e);color:white;padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between}
+.topbar h1{font-size:18px;font-weight:600}
+.topbar a{color:#aab;text-decoration:none;font-size:13px;padding:6px 14px;border:1px solid #334;border-radius:6px}
+.topbar a:hover{color:white;border-color:#667}
+.container{max-width:1200px;margin:0 auto;padding:20px}
+
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:20px}
+.stat-card{background:white;border-radius:12px;padding:16px 18px;box-shadow:0 1px 3px rgba(0,0,0,0.06);display:flex;align-items:center;gap:12px}
+.stat-card .icon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.stat-card .icon.green{background:#eafaf1;color:#27ae60}
+.stat-card .icon.blue{background:#e8f4fd;color:#2980b9}
+.stat-card .icon.orange{background:#fef5e7;color:#e67e22}
+.stat-card .icon.red{background:#fdedec;color:#e74c3c}
+.stat-card .icon.purple{background:#f4ecf7;color:#8e44ad}
+.stat-card .val{font-size:24px;font-weight:700;color:#222}
+.stat-card .lbl{font-size:12px;color:#999;margin-top:2px}
+
+.section{background:white;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.06);margin-bottom:20px;overflow:hidden}
+.section-hd{padding:14px 20px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center}
+.section-hd h3{font-size:15px;font-weight:600;color:#222}
+.section-bd{padding:18px 20px}
+
+.ai-tabs{display:flex;margin-bottom:14px;border-bottom:2px solid #eee}
+.ai-tab{padding:10px 18px;font-size:13px;cursor:pointer;color:#999;border-bottom:2px solid transparent;margin-bottom:-2px;background:none;border-top:none;border-left:none;border-right:none;font-family:inherit}
+.ai-tab.active{color:#667eea;border-bottom-color:#667eea;font-weight:600}
+.ai-result{padding:14px;background:#f8f9fc;border-radius:10px;font-size:14px;line-height:1.8;color:#444;min-height:100px;white-space:pre-wrap;border-left:4px solid #667eea}
+.ai-result.loading{color:#999;animation:pulse 1.5s infinite}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.ai-btn{display:inline-flex;align-items:center;gap:6px;padding:10px 20px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#f8f9fc;padding:9px 10px;text-align:left;font-weight:600;color:#666;font-size:12px;border-bottom:2px solid #eee}
+td{padding:9px 10px;border-bottom:1px solid #f5f5f5}tr:hover{background:#fafbfc}
+
+.badge{padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;display:inline-block}
+.badge.good{background:#eafaf1;color:#27ae60}.badge.warn{background:#fef5e7;color:#e67e22}.badge.danger{background:#fdedec;color:#e74c3c}
+
+.order-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f5f5f5}
+.order-items{font-size:14px;color:#333;flex:1}
+.order-total{font-size:16px;font-weight:700;color:#e74c3c;min-width:70px;text-align:right}
+.order-time{font-size:12px;color:#aaa;min-width:50px;text-align:right;margin-left:12px}
+.empty-state{text-align:center;padding:40px;color:#bbb;font-size:14px}
+.refreshed{font-size:12px;color:#999}
+
+.scan-panel{display:flex;gap:16px;flex-wrap:wrap}
+.scan-right{flex:2;min-width:300px}
+.form-group{margin-bottom:10px}
+.form-group label{display:block;font-size:13px;color:#666;margin-bottom:3px;font-weight:600}
+.form-group input,.form-group select{width:100%;padding:9px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;font-family:inherit;outline:none}
+.form-group input:focus{border-color:#667eea}
+.btn-submit{padding:10px 24px;background:linear-gradient(135deg,#2ecc71,#27ae60);color:white;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:6px}
+.btn-submit.danger{background:linear-gradient(135deg,#e74c3c,#c0392b)}
+.scan-msg{padding:10px;border-radius:8px;font-size:13px;margin-bottom:10px}
+.scan-msg.ok{background:#eafaf1;color:#27ae60}.scan-msg.err{background:#fdedec;color:#e74c3c}.scan-msg.info{background:#e8f4fd;color:#2980b9}
+</style>
+</head>
+<body>
+<div class="topbar" id="topBar" style="background:linear-gradient(135deg,#1a1a2e,#16213e)">
+  <h1 id="storeTitle">📊 商家管理中心</h1>
+  <div>
+    <a href="#" onclick="exportReport();return false" style="color:#fff;text-decoration:none;font-size:12px;padding:6px 10px;border:1px solid rgba(255,255,255,0.3);border-radius:6px;margin-right:8px;text-shadow:0 1px 2px rgba(0,0,0,0.3)">📥 导出日报</a>
+    <span style="font-size:12px;color:#fff;margin-right:12px;text-shadow:0 1px 2px rgba(0,0,0,0.3)" id="currentTime"></span>
+    <span style="font-size:12px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.4)" id="loginUser">👤 ...</span>
+    <a href="/logout" style="color:#fff;text-decoration:none;font-size:12px;margin-left:12px;text-shadow:0 1px 2px rgba(0,0,0,0.3)">退出</a>
+  </div>
+</div>
+<div class="container">
+
+  <div class="stats-grid">
+    <div class="stat-card"><div class="icon green">💰</div><div><div class="val" id="sRevenue">¥0</div><div class="lbl">今日营业额</div></div></div>
+    <div class="stat-card"><div class="icon blue">📋</div><div><div class="val" id="sOrders">0</div><div class="lbl">今日订单数</div></div></div>
+    <div class="stat-card"><div class="icon purple">🛒</div><div><div class="val" id="sAvgOrder">¥0</div><div class="lbl">平均客单价</div></div></div>
+    <div class="stat-card"><div class="icon orange">⚠️</div><div><div class="val" id="sLowStock">0</div><div class="lbl">库存预警商品</div></div></div>
+    <div class="stat-card"><div class="icon red">⏰</div><div><div class="val" id="sExpiry">0</div><div class="lbl">临期/过期商品</div></div></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:20px">
+    <div class="section" style="margin-bottom:0"><div class="section-hd"><h3>📈 近7天趋势</h3><button onclick="resetTrend()" style="margin-left:12px;padding:2px 10px;border:1px solid #ddd;border-radius:6px;background:white;font-size:11px;cursor:pointer;color:#999">重置</button></div><div class="section-bd" style="position:relative;height:300px"><canvas id="trendChart"></canvas></div></div>
+    <div class="section" style="margin-bottom:0"><div class="section-hd"><h3>🚨 动态补货预警</h3></div><div class="section-bd" id="restockAlerts" style="max-height:300px;overflow-y:auto"><div class="empty-state">加载中...</div></div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-hd"><h3>📷 扫码进货</h3><span class="refreshed">摄像头QR码 + 扫码枪条形码</span></div>
+    <div class="section-bd">
+      <div style="text-align:center;padding:30px 20px" id="scanStart">
+        <div style="font-size:48px;margin-bottom:16px">📷🔫</div>
+        <div style="margin-bottom:20px;color:#666">选择扫码方式开始进货</div>
+        <button onclick="startCamScan()" style="padding:14px 32px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;font-family:inherit;margin:0 8px">📷 摄像头扫码</button>
+        <button onclick="startGunScan()" style="padding:14px 32px;background:linear-gradient(135deg,#e67e22,#d35400);color:white;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;font-family:inherit;margin:0 8px">🔫 扫码枪</button>
+        <input type="text" id="gunInput" style="position:fixed;top:-100px;left:-100px;width:1px;height:1px;opacity:0" autocomplete="off">
+      </div>
+      <div style="text-align:center;padding:20px;color:#667eea;font-size:15px;font-weight:600;display:none" id="scanWaiting">
+        <span class="scan-dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#667eea;margin-right:8px;animation:dot 1s infinite"></span>
+        正在识别中，请将条码对准扫描设备...
+        <button onclick="stopAllScan()" style="margin-left:16px;padding:6px 16px;background:#f5f5f5;color:#999;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit">取消</button>
+      </div>
+      <div id="scanForm" style="display:none">
+        <div id="scanMsg"></div>
+        <div id="existingProduct" style="display:none">
+          <div class="form-group"><label>商品名称</label><input type="text" id="rName" disabled></div>
+          <div class="form-group"><label>当前库存</label><input type="text" id="rStock" disabled></div>
+          <div class="form-group"><label>进货数量</label><input type="number" id="rQty" value="10" min="1"></div>
+          <button class="btn-submit" onclick="doRestock()">✅ 确认进货</button>
+        </div>
+        <div id="newProduct" style="display:none">
+          <div class="form-group"><label>条码</label><input type="text" id="nCode" disabled></div>
+          <div class="form-group"><label>商品名称 *</label><input type="text" id="nName"></div>
+          <div class="form-group"><label>单价 (元) *</label><input type="number" id="nPrice" step="0.01" placeholder="9.90"></div>
+          <div class="form-group"><label>入库数量</label><input type="number" id="nStock" value="20" min="1"></div>
+          <div class="form-group"><label>生产日期</label><input type="date" id="nMfg"></div>
+          <div class="form-group"><label>保质期 (月)</label><input type="number" id="nLife" value="12" min="1"></div>
+          <div class="form-group"><label>图标</label>
+            <select id="nIcon" style="width:100%;padding:9px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:22px;font-family:inherit">
+              <option value="🥤">🥤 饮料</option><option value="🍫">🍫 零食</option><option value="🍜">🍜 食品</option>
+              <option value="🧻">🧻 日用品</option><option value="💧">💧 水</option><option value="🍟">🍟 膨化</option>
+              <option value="🥛">🥛 乳制品</option><option value="🍪">🍪 饼干</option><option value="📦">📦 其他</option>
+            </select>
+          </div>
+          <div class="form-group"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="nWeigh" style="width:auto"> ⚖️ 称重商品（按克计价，出现在称重tab）</label></div>
+          <button class="btn-submit" onclick="doAddProduct()">➕ 新增商品</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 主导航 -->
+  <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap" id="mainTabs">
+    <button class="btn-main-tab active" onclick="switchMainTab('dashboard')" id="tabDashboard">📊 仪表盘</button>
+    <button class="btn-main-tab" onclick="switchMainTab('ai')" id="tabAi">🤖 AI分析</button>
+    <button class="btn-main-tab" onclick="switchMainTab('members')" id="tabMembers">👥 会员</button>
+    <button class="btn-main-tab" onclick="switchMainTab('logs')" id="tabLogs">📜 日志</button>
+    <button class="btn-main-tab" onclick="switchMainTab('settings')" id="tabSettings">⚙️ 设置</button>
+  </div>
+
+  <style>
+  .btn-main-tab{padding:10px 18px;background:white;border:1.5px solid #e0e0e0;border-radius:10px;font-size:13px;cursor:pointer;color:#666;font-family:inherit;font-weight:500}
+  .btn-main-tab.active{background:#667eea;color:white;border-color:#667eea}
+  </style>
+
+  <div id="secDashboard">
+  <div class="section manager-only" id="secAi">
+    <div class="section-hd"><h3>🤖 AI 智能分析</h3><span class="refreshed" id="aiRefreshed"></span></div>
+    <div class="section-bd">
+      <div class="ai-tabs">
+        <button class="ai-tab active" onclick="runAnalysis('full')">📋 综合报告</button>
+        <button class="ai-tab" onclick="runAnalysis('restock')">📦 进货建议</button>
+        <button class="ai-tab" onclick="runAnalysis('promotion')">🏷️ 促销建议</button>
+        <button class="ai-tab" onclick="runAnalysis('expiry')">⏰ 临期预警</button>
+      </div>
+      <div id="aiResult" class="ai-result loading">点击上方按钮，AI 将自动分析...</div>
+      <button class="ai-btn" onclick="runAnalysis('full')" style="margin-top:10px" id="btnAnalyze">✨ 一键生成报告</button>
+    </div>
+  </div>
+
+  <div class="section" id="secProducts">
+    <div class="section-hd"><h3>📦 商品管理</h3><span class="refreshed" id="prodRefreshed"></span><input id="prodSearch" placeholder="🔍 搜索商品..." oninput="filterProducts()" style="margin-left:16px;padding:6px 12px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:13px;width:180px;font-family:inherit"></div>
+    <div class="section-bd" style="overflow-x:auto">
+      <table>
+        <thead><tr><th>商品</th><th>单价</th><th>库存</th><th>今日销量</th><th>今日销售额</th><th>生产日期</th><th>保质期</th><th>到期状态</th><th>库存状态</th><th>补货建议</th><th>操作</th></tr></thead>
+        <tbody id="productTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-hd"><h3>🧾 订单记录</h3><span class="refreshed" id="orderRefreshed"></span></div>
+    <div class="section-bd" id="orderList"><div class="empty-state">暂无订单</div></div>
+  </div>
+</div> <!-- end secDashboard -->
+
+  <!-- 店铺设置面板（店长可见）-->
+  <div class="section" id="secMembers" style="display:none">
+    <div class="section-hd"><h3>👥 会员管理</h3><span class="refreshed" id="memRefreshed"></span></div>
+    <div class="section-bd">
+      <div style="margin-bottom:12px;display:flex;gap:8px">
+        <input id="newMemName" placeholder="姓名" style="width:80px;padding:8px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:13px;font-family:inherit">
+        <input id="newMemPhone" placeholder="手机号" style="width:120px;padding:8px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:13px;font-family:inherit">
+        <button onclick="addMember()" style="padding:8px 16px;background:#2ecc71;color:white;border:none;border-radius:8px;font-size:13px;cursor:pointer">+ 添加</button>
+      </div>
+      <div id="memberList" style="max-height:400px;overflow-y:auto"><div class="empty-state">加载中...</div></div>
+      <div style="margin-top:12px;font-size:12px;color:#999" id="rfidBindHint"></div>
+    </div>
+  </div>
+
+  <div class="section" id="secSettings" style="display:none">
+    <div class="section-hd"><h3>⚙️ 店铺设置</h3></div>
+    <div class="section-bd">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:500px">
+        <div class="form-group"><label>店铺名称</label><input id="cfgName" placeholder="我的小店"></div>
+        <div class="form-group"><label>图标 Emoji</label><input id="cfgEmoji" placeholder="🏪"></div>
+        <div class="form-group"><label>主题色</label><input id="cfgColor" type="color" style="height:40px;padding:4px"></div>
+      </div>
+      <button class="btn-submit" onclick="saveSettings()" style="margin-top:12px">💾 保存设置</button>
+      <span style="color:#27ae60;font-size:13px;margin-left:12px;display:none" id="cfgSaved">已保存</span>
+
+      <hr style="margin:20px 0;border:none;border-top:1px solid #eee" class="manager-only">
+      <h4 style="margin-bottom:12px;color:#333" class="manager-only">👥 员工账号管理</h4>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end;max-width:600px;margin-bottom:12px" class="manager-only">
+        <div class="form-group" style="margin:0"><label>用户名</label><input id="newEmpUser" placeholder="新员工"></div>
+        <div class="form-group" style="margin:0"><label>密码</label><input id="newEmpPwd" type="password" placeholder="至少3位"></div>
+        <div class="form-group" style="margin:0"><label>角色</label>
+          <select id="newEmpRole" style="width:100%;padding:9px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;font-family:inherit">
+            <option value="staff">店员</option><option value="manager">店长</option>
+          </select>
+        </div>
+        <button class="btn-submit" onclick="createEmployee()" style="margin:0;white-space:nowrap">➕ 创建</button>
+      </div>
+      <div id="empListMsg" style="font-size:12px;color:#27ae60;margin-bottom:8px;display:none" class="manager-only"></div>
+      <div id="empList" style="max-height:200px;overflow-y:auto" class="manager-only"></div>
+    </div>
+  </div>
+
+  <!-- 操作日志面板 -->
+  <div class="section" id="secLogs" style="display:none">
+    <div class="section-hd"><h3>📜 操作日志</h3><span class="refreshed">最近50条记录</span></div>
+    <div class="section-bd" style="max-height:400px;overflow-y:auto" id="logList"><div class="empty-state">加载中...</div></div>
+  </div>
+
+<script>
+// ===== 工具 =====
+// 读取角色cookie
+var adminRole=(document.cookie.split(';').find(function(c){return c.trim().startsWith('admin_role=')})||'=staff').split('=')[1]||'staff';
+var isManager=(adminRole==='manager');
+function nowStr(){var d=new Date();return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0')+':'+d.getSeconds().toString().padStart(2,'0');}
+function calcExpiry(mfgDate,shelfMonths){
+  var parts=mfgDate.split('-');if(parts.length<3)return{label:'未知',level:'good'};
+  var mfg=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));
+  var exp=new Date(mfg);exp.setMonth(exp.getMonth()+shelfMonths);
+  var days=Math.ceil((exp-new Date())/(86400000));
+  if(days<0)return{label:'已过期',level:'danger'};
+  if(days<=30)return{label:'仅剩'+days+'天',level:'danger'};
+  if(days<=60)return{label:'剩'+days+'天',level:'warn'};
+  return{label:'正常',level:'good'};
+}
+function filterProducts(){loadDashboard();}
+async function resetTrend(){if(confirm('重置7天趋势数据？将清空所有历史记录。')){await fetch('/api/admin/reset-trend',{method:'POST'});loadDashboard();}}
+// ── 会员管理 ──
+async function loadMemberList(){
+  try{var r=await fetch('/api/member/list');var list=await r.json();
+  var h='';var now=new Date().toLocaleString();
+  list.forEach(function(m){
+    h+='<div style="padding:10px 0;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">';
+    h+='<span>👤 <b>'+m.name+'</b> <span style="font-size:11px;color:#999">'+(m.phone?'📱'+m.phone+' ':'')+'积分:'+m.points+' | 累计:¥'+m.totalSpent.toFixed(0)+'</span></span>';
+    h+='<span style="display:flex;gap:4px">';
+    if(m.rfid_uid)h+='<span style="font-size:11px;color:#27ae60">💳 '+m.rfid_uid+'</span><button onclick="unbindMemRFID(\''+m.id+'\')" style="background:#fef5e7;color:#e67e22;border:none;padding:2px 6px;border-radius:4px;cursor:pointer;font-size:10px">解绑</button>';
+    else h+='<button onclick="startMemBindRFID(\''+m.id+'\')" style="background:#e8f4fd;color:#2980b9;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:11px">绑卡</button>';
+    h+='<button onclick="adjustMemPoints(\''+m.id+'\')" style="background:#f0f0f0;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:11px">调分</button>';
+    h+='<button onclick="deleteMember(\''+m.id+'\')" style="background:#fdedec;color:#e74c3c;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:11px">🗑</button>';
+    h+='</span></div>';
+  });
+  document.getElementById('memberList').innerHTML=h||'<div class="empty-state">暂无会员</div>';
+  document.getElementById('memRefreshed').textContent='更新于 '+now;
+  }catch(e){}
+}
+async function addMember(){
+  var name=document.getElementById('newMemName').value.trim();
+  var phone=document.getElementById('newMemPhone').value.trim();
+  if(!name){alert('请输入姓名');return;}
+  var r=await fetch('/api/member/register',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'name='+encodeURIComponent(name)+'&phone='+encodeURIComponent(phone)});
+  var d=await r.json();
+  if(d.ok){document.getElementById('newMemName').value='';document.getElementById('newMemPhone').value='';loadMemberList();}else{alert(d.msg||'失败');}
+}
+var memBindMid=null,memBindTimer=null;
+function startMemBindRFID(mid){
+  memBindMid=mid;
+  document.getElementById('rfidBindHint').innerHTML='⏳ 请刷RFID卡...';
+  if(memBindTimer)clearInterval(memBindTimer);
+  memBindTimer=setInterval(async function(){
+    var r=await fetch('/api/rfid-poll');var d=await r.json();
+    if(d.card&&d.uid){
+      clearInterval(memBindTimer);
+      var resp=await fetch('/api/member/bind-rfid',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'uid='+d.uid+'&id='+memBindMid});
+      var rd=await resp.json();
+      document.getElementById('rfidBindHint').innerHTML=rd.ok?'✅ 绑定成功':'❌ 绑定失败';
+      loadMemberList();
+    }
+  },500);
+}
+async function unbindMemRFID(mid){
+  await fetch('/api/member/unbind-rfid',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'id='+mid});
+  loadMemberList();
+}
+async function deleteMember(mid){
+  if(!confirm('确认删除该会员？'))return;
+  await fetch('/api/member/delete',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'id='+mid});
+  loadMemberList();
+}
+async function adjustMemPoints(mid){
+  var pts=prompt('调整积分（正数加、负数减）：');
+  if(!pts)return;
+  await fetch('/api/member/add-points',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'id='+mid+'&pts='+pts});
+  loadMemberList();
+}
+async function refundOrder(orderId){
+  if(!confirm('确认退款该订单？库存将恢复。'))return;
+  var r=await fetch('/api/admin/refund',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'orderId='+orderId});
+  var d=await r.json();
+  if(d.ok){alert('已退款');loadDashboard();}else{alert('退款失败: '+(d.msg||''));}
+}
+function stockBadge(stock){
+  if(stock<=0)return'<span class="badge danger">缺货</span>';
+  if(stock<5)return'<span class="badge danger">告急('+stock+')</span>';
+  if(stock<15)return'<span class="badge warn">偏低('+stock+')</span>';
+  return'<span class="badge good">充足</span>';
+}
+
+var allProducts=[];
+
+async function loadDashboard(){
+  try{var r=await fetch('/api/products');allProducts=await r.json();}catch(e){return;}
+  var orders=[];
+  try{var or=await fetch('/api/order-history');orders=await or.json();}catch(e){}
+
+  var totalRevenue=0,paidOrders=0,lowStock=0,nearExpiry=0;
+  orders.forEach(function(o){if(o.paid){totalRevenue+=o.total;paidOrders++;}});
+  allProducts.forEach(function(p){
+    if(!p.name||!p.qr_code)return;
+    if(p.stock<10)lowStock++;
+    var ex=calcExpiry(p.mfg_date,p.shelf_life);
+    if(ex.level==='danger')nearExpiry++;
+  });
+  var avg=paidOrders>0?(totalRevenue/paidOrders):0;
+  document.getElementById('sRevenue').textContent='¥'+totalRevenue.toFixed(2);
+  document.getElementById('sOrders').textContent=paidOrders;
+  document.getElementById('sAvgOrder').textContent='¥'+avg.toFixed(2);
+  document.getElementById('sLowStock').textContent=lowStock;
+  document.getElementById('sExpiry').textContent=nearExpiry;
+
+  var sorted=allProducts.filter(function(p){return p.name&&p.qr_code;}).sort(function(a,b){return(b.price*b.today_sold)-(a.price*a.today_sold);});
+  var q=(document.getElementById('prodSearch').value||'').toLowerCase();
+  var ph='';
+  sorted.forEach(function(p){
+    if(q&&p.name.toLowerCase().indexOf(q)<0&&p.qr_code.indexOf(q)<0)return;
+    var ex=calcExpiry(p.mfg_date,p.shelf_life);
+    ph+='<tr><td><b>'+p.icon+' '+p.name+'</b></td>';
+    ph+='<td style="color:#e74c3c;font-weight:600">¥'+p.price.toFixed(2)+'</td>';
+    ph+='<td style="font-weight:600">'+p.stock+'</td>';
+    ph+='<td>'+p.today_sold+'件</td>';
+    ph+='<td style="color:#e74c3c;font-weight:600">¥'+(p.price*p.today_sold).toFixed(2)+'</td>';
+    ph+='<td style="font-size:12px;color:#888">'+p.mfg_date+'</td>';
+    ph+='<td style="font-size:12px;color:#888">'+p.shelf_life+'个月</td>';
+    ph+='<td><span class="badge '+(ex.level||'good')+'">'+ex.label+'</span></td>';
+    ph+='<td>'+stockBadge(p.stock)+(p.isWeigh?' ⚖️':'')+'</td>';
+    var rate=p.today_sold||0.1;
+    var daysLeft=Math.round(p.stock/rate);
+    var restockHTML=daysLeft<3?'<span style="color:#e74c3c;font-weight:700">⚠ '+daysLeft+'天</span>':daysLeft<7?'<span style="color:#e67e22">'+daysLeft+'天</span>':'<span style="color:#27ae60">'+daysLeft+'天</span>';
+    ph+='<td style="font-size:12px">'+restockHTML+'</td>';
+    ph+='<td>'+(isManager?'<button onclick="delProduct(\''+p.qr_code+'\',\''+p.name.replace(/'/g," ")+'\')" style="background:#fdedec;color:#e74c3c;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px">🗑</button>':'<span style="font-size:12px;color:#ccc">--</span>')+'</td></tr>';
+  });
+  document.getElementById('productTable').innerHTML=ph;
+
+  var oh='';
+  if(orders.length===0){oh='<div class="empty-state">暂无订单</div>';}
+  else{
+    for(var i=orders.length-1;i>=0;i--){
+      var o=orders[i];
+      oh+='<div class="order-row"><div class="order-items">'+o.items+' '+(o.paid?'<span class="badge good">已付</span>':'<span class="badge warn">未付</span>')+(o.method?' <span style="font-size:11px;color:#888">['+(o.method==='wx'?'微信':o.method==='alipay'?'支付宝':'现金')+']</span>':'')+'</div><div class="order-total">¥'+o.total.toFixed(2)+'</div><div class="order-time">'+o.time+(o.paid&&isManager?' <button onclick="refundOrder('+i+')" style="background:#fdedec;color:#e74c3c;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:11px;margin-left:8px">退款</button>':'')+'</div></div>';
+    }
+  }
+  document.getElementById('orderList').innerHTML=oh;
+  var ts=nowStr();
+  document.getElementById('prodRefreshed').textContent='更新于 '+ts;
+  document.getElementById('orderRefreshed').textContent='更新于 '+ts;
+  document.getElementById('currentTime').textContent=ts;
+
+  // ── 动态补货预警（双维度：库存可售天数 + 绝对库存下限）──
+  var alerts=[];
+  sorted.forEach(function(p){
+    if(p.stock<=0) return;
+    if(p.stock<=5){
+      // 绝对库存过低，不论日销多少都预警
+      var d=p.today_sold>0?Math.round(p.stock/p.today_sold):0;
+      var label=p.today_sold>0?'⚠ 仅剩'+d+'天':'⚠ 库存告急';
+      alerts.push({name:p.name,icon:p.icon,stock:p.stock,sold:p.today_sold,days:d,label:label,level:'critical'});
+    }else{
+      var rate=p.today_sold||0;
+      if(rate<=0) return; // 日销为0且库存>5，不预警
+      var days=Math.round(p.stock/rate);
+      if(days<3) alerts.push({name:p.name,icon:p.icon,stock:p.stock,sold:p.today_sold,days:days,label:'⚠ 仅剩'+days+'天',level:days<=1?'critical':'warn'});
+    }
+  });
+  alerts.sort(function(a,b){return a.days-b.days;});
+  var ah='';
+  if(alerts.length===0) ah='<div class="empty-state">✅ 库存充足，无需补货</div>';
+  else alerts.forEach(function(a){
+    var color=a.level==='critical'?'#e74c3c':'#e67e22';
+    ah+='<div style="padding:8px 0;border-bottom:1px solid #f0f0f0"><span>'+a.icon+' <b>'+a.name+'</b></span><br><span style="font-size:12px;color:#888">库存'+a.stock+'件 / 日销'+(a.sold||0)+'件</span> <span style="color:'+color+';font-weight:700;float:right">'+a.label+'</span></div>';
+  });
+  document.getElementById('restockAlerts').innerHTML=ah||'<div class="empty-state">✅ 库存充足</div>';
+
+  // ── 7天趋势图（纯Canvas，无需CDN）──
+  try{var tr=await fetch('/api/admin/trend');var td=await tr.json();}catch(e){return;}
+  var labels=td.map(function(x){return x.label;});
+  var revData=td.map(function(x){return x.r;});
+  var soldData=td.map(function(x){return x.s;});
+  var c=document.getElementById('trendChart');
+  if(!c)return;
+  var w=c.parentNode.clientWidth-24,h=c.parentNode.clientHeight-16;
+  c.width=w*2;c.height=h*2;c.style.width=w+'px';c.style.height=h+'px';
+  var ctx=c.getContext('2d');ctx.scale(2,2);
+  var padL=50,padR=45,padT=28,padB=48,pw=w-padL-padR,ph=h-padT-padB;
+  var maxR=Math.max.apply(null,revData.concat([1]));
+  var maxS=Math.max.apply(null,soldData.concat([1]));
+  // 坐标轴
+  ctx.strokeStyle='#ddd';ctx.lineWidth=1;
+  for(var i=0;i<=4;i++){var y=padT+ph*i/4;ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(w-padR,y);ctx.stroke();}
+  // 折线-营业额
+  ctx.beginPath();ctx.strokeStyle='#667eea';ctx.lineWidth=2;
+  for(var i=0;i<revData.length;i++){var x=padL+pw*i/(revData.length-1);var y=padT+ph-ph*revData[i]/maxR;i==0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
+  ctx.stroke();
+  // 折线-件数
+  ctx.beginPath();ctx.strokeStyle='#27ae60';ctx.lineWidth=2;
+  for(var i=0;i<soldData.length;i++){var x=padL+pw*i/(soldData.length-1);var y=padT+ph-ph*soldData[i]/maxS;i==0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
+  ctx.stroke();
+  // 数据点和标签
+  ctx.font='10px "PingFang SC","Microsoft YaHei",sans-serif';
+  for(var i=0;i<revData.length;i++){var x=padL+pw*i/(revData.length-1);
+    var y=padT+ph-ph*revData[i]/maxR;ctx.fillStyle='#667eea';ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#667eea';ctx.fillText('¥'+revData[i].toFixed(2),x-15,y-8);
+    ctx.fillStyle='#999';ctx.textAlign='center';ctx.fillText(labels[i],x,padT+ph+18);ctx.textAlign='start';
+  }
+  // 图例
+  ctx.fillStyle='#667eea';ctx.fillRect(padL,padT+ph+26,10,10);
+  ctx.fillStyle='#666';ctx.fillText('营业额(¥)',padL+14,padT+ph+35);
+  ctx.fillStyle='#27ae60';ctx.fillRect(padL+100,padT+ph+26,10,10);
+  ctx.fillStyle='#666';ctx.fillText('售出件数',padL+114,padT+ph+35);
+}
+
+async function delProduct(code,name){
+  if(!confirm('删除 "'+name+'"？不可恢复！'))return;
+  var r=await fetch('/api/admin/delete',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'code='+encodeURIComponent(code)});
+  var d=await r.json();
+  if(d.ok){loadDashboard();}else{alert('删除失败');}
+}
+
+// ===== AI =====
+async function runAnalysis(type){
+  document.querySelectorAll('.ai-tab').forEach(function(t){t.classList.remove('active')});
+  var idx={full:0,restock:1,promotion:2,expiry:3};
+  document.querySelectorAll('.ai-tab')[idx[type]].classList.add('active');
+  var el=document.getElementById('aiResult');
+  el.className='ai-result loading';el.textContent='AI 分析中...';
+  document.getElementById('btnAnalyze').disabled=true;
+  try{var r=await fetch('/api/admin/analysis?type='+type);el.className='ai-result';el.textContent=await r.text();document.getElementById('aiRefreshed').textContent='完成于 '+nowStr();}
+  catch(e){el.className='ai-result';el.textContent='分析失败';}
+  document.getElementById('btnAnalyze').disabled=false;
+}
+
+// ===== 扫码进货（点击触发 → 扫到弹窗）=====
+var scanMode='';     // 'cam' or 'gun'
+var scanTimer=null;
+var scannedCode='';
+var MODULE_A="192.168.43.13";
+
+function startCamScan(){
+  stopAllScan();
+  fetch('/api/admin-cam-start'); // 通知ESP32商家在扫码，顾客端暂停
+  fetch('/api/scan-gun-clear');
+  scanMode='cam';
+  document.getElementById('scanStart').style.display='none';
+  document.getElementById('scanWaiting').style.display='block';
+  document.getElementById('scanWaiting').innerHTML='<span class="scan-dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#667eea;margin-right:8px;animation:dot 1s infinite"></span>正在摄像头扫码中，请将QR码对准摄像头... <button onclick="stopAllScan()" style="margin-left:16px;padding:6px 16px;background:#f5f5f5;color:#999;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit">取消</button>';
+  scanTimer=setInterval(pollCamera,2000); // 摄像头解码约1.5秒，避免请求堆积
+}
+
+function startGunScan(){
+  stopAllScan();
+  fetch('/api/scan-gun-clear');
+  scanMode='gun';
+  document.getElementById('scanStart').style.display='none';
+  document.getElementById('scanWaiting').style.display='block';
+  document.getElementById('scanWaiting').innerHTML='<span class="scan-dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e67e22;margin-right:8px;animation:dot 1s infinite"></span>等待扫码枪，直接扫条码... <button onclick="stopAllScan()" style="margin-left:16px;padding:6px 16px;background:#f5f5f5;color:#999;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit">取消</button>';
+  scanTimer=setInterval(pollGunCode,500);
+}
+
+function stopAllScan(){
+  fetch('/api/admin-cam-stop'); // 通知ESP32商家扫码结束，顾客端恢复
+  scanMode='';
+  if(scanTimer){clearInterval(scanTimer);scanTimer=null;}
+  _lastGun3='';_lastCam='';scannedCode='';
+  var inp=document.getElementById('gunInput');
+  inp.style.display='none';inp.value='';
+  document.getElementById('scanStart').style.display='block';
+  document.getElementById('scanWaiting').style.display='none';
+  document.getElementById('scanForm').style.display='none';
+  document.getElementById('existingProduct').style.display='none';
+  document.getElementById('newProduct').style.display='none';
+  scannedCode='';
+}
+
+var _lastCam='';
+async function pollCamera(){
+  try{
+    var r=await fetch('http://'+MODULE_A+'/qr-scan');
+    var d=await r.json();
+    console.log('[admin poll]',d);
+    if(d.ok&&d.text){
+      var code=(d.text||'').trim();
+      console.log('[admin poll] code:',code);
+      if(code&&code.length>=1&&code!==_lastCam){
+        _lastCam=code;scannedCode=code;
+        if(scanTimer){clearInterval(scanTimer);scanTimer=null;}
+        document.getElementById('scanWaiting').style.display='none';
+        showCodeResult(code);
+      }
+    }
+  }catch(e){console.error('[admin poll] error:',e);}
+}
+
+// 扫码枪轮询ESP32
+var _lastGun3='';
+function pollGunCode(){
+  fetch('/api/scan-gun-result').then(function(r){return r.json()}).then(function(d){
+    if(d.code&&d.code.length>=8&&d.code!==_lastGun3){
+      _lastGun3=d.code;scannedCode=d.code;
+      clearInterval(scanTimer);scanTimer=null;
+      document.getElementById('scanWaiting').style.display='none';
+      showCodeResult(d.code);
+    }
+  }).catch(function(){});
+}
+
+// 隐藏输入框（不再使用但保留元素）
+document.getElementById('gunInput').addEventListener('keydown',function(e){
+  if(scanMode!=='gun')return;
+  if(e.key==='Enter'){
+    e.preventDefault();
+    var code=this.value.trim();
+    if(code.length>=8){
+      scannedCode=code;
+      this.style.display='none';
+      this.value='';
+      stopAllScan();
+      document.getElementById('scanWaiting').style.display='none';
+      showCodeResult(code);
+    }
+  }
+});
+document.getElementById('gunInput').addEventListener('blur',function(){
+  if(scanMode==='gun'){setTimeout(function(){this.focus();}.bind(this),50);}
+});
+
+function showCodeResult(code){
+  document.getElementById('scanForm').style.display='block';
+  document.getElementById('scanMsg').innerHTML='<div class="scan-msg info">🔍 '+code+'</div>';
+  var p=allProducts.find(function(x){return x.qr_code===code;});
+  if(p){showExistingProduct(p);}else{showNewProduct(code);}
+}
+
+function showExistingProduct(p){
+  document.getElementById('scanMsg').innerHTML='<div class="scan-msg ok">✅ '+p.icon+' '+p.name+'</div>';
+  document.getElementById('rName').value=p.name;
+  document.getElementById('rStock').value=p.stock+' 件';
+  document.getElementById('rQty').value=10;
+  document.getElementById('existingProduct').style.display='block';
+  document.getElementById('newProduct').style.display='none';
+  document.getElementById('rQty').focus();
+}
+function showNewProduct(code){
+  document.getElementById('scanMsg').innerHTML='<div class="scan-msg info">🆕 新商品条码</div>';
+  document.getElementById('nCode').value=code;
+  document.getElementById('nName').value='';document.getElementById('nPrice').value='';
+  document.getElementById('nStock').value=20;
+  document.getElementById('nMfg').value=new Date().toISOString().split('T')[0];
+  document.getElementById('nLife').value=12;
+  document.getElementById('nWeigh').checked=false;
+  document.getElementById('existingProduct').style.display='none';
+  document.getElementById('newProduct').style.display='block';
+  document.getElementById('nName').focus();
+}
+async function doRestock(){
+  var qty=parseInt(document.getElementById('rQty').value)||0;
+  if(qty<=0){alert('请输入数量');return;}
+  var r=await fetch('/api/admin/restock',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'code='+encodeURIComponent(scannedCode)+'&qty='+qty});
+  var d=await r.json();
+  document.getElementById('scanMsg').innerHTML='<div class="scan-msg '+(d.ok?'ok':'err')+'">'+(d.ok?'进货成功':'进货失败')+'</div>';
+  if(d.ok){loadDashboard();setTimeout(resetScanPanel,2000);}
+}
+async function doAddProduct(){
+  var name=document.getElementById('nName').value.trim();
+  var price=parseFloat(document.getElementById('nPrice').value)||0;
+  if(!name||price<=0){alert('请填写名称和单价');return;}
+  var isWeigh=document.getElementById('nWeigh').checked?'1':'0';
+  var r=await fetch('/api/admin/add-product',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'code='+encodeURIComponent(scannedCode)+'&name='+encodeURIComponent(name)+'&price='+price+'&stock='+(parseInt(document.getElementById('nStock').value)||0)+'&mfg='+encodeURIComponent(document.getElementById('nMfg').value)+'&life='+(parseInt(document.getElementById('nLife').value)||12)+'&icon='+encodeURIComponent(document.getElementById('nIcon').value)+'&weigh='+isWeigh});
+  var d=await r.json();
+  document.getElementById('scanMsg').innerHTML='<div class="scan-msg '+(d.ok?'ok':'err')+'">'+(d.ok?'新增成功':'失败')+'</div>';
+  if(d.ok){loadDashboard();setTimeout(resetScanPanel,2000);}
+}
+function resetScanPanel(){
+  scannedCode='';
+  _lastCam='';
+  _lastGun3='';
+  document.getElementById('gunInput').value='';
+  document.getElementById('scanStart').style.display='block';
+  document.getElementById('scanForm').style.display='none';
+  document.getElementById('existingProduct').style.display='none';
+  document.getElementById('newProduct').style.display='none';
+}
+
+// ── 主导航切换 ──
+var mainTab='dashboard';
+function switchMainTab(tab){
+  mainTab=tab;
+  document.querySelectorAll('.btn-main-tab').forEach(function(b){b.classList.remove('active');});
+  var btn=document.getElementById('tab'+tab.charAt(0).toUpperCase()+tab.slice(1));
+  if(btn)btn.classList.add('active');
+  var showDash=(tab==='dashboard'||tab==='ai'||tab==='export');
+  document.getElementById('secDashboard').style.display=showDash?'block':'none';
+  document.getElementById('secMembers').style.display=(tab==='members')?'block':'none';
+  document.getElementById('secSettings').style.display=(tab==='settings')?'block':'none';
+  document.getElementById('secLogs').style.display=(tab==='logs')?'block':'none';
+  if(tab==='members') loadMemberList();
+  if(tab==='logs')loadLogs();
+  if(tab==='settings')loadSettings();
+  if(tab==='export'){printDailyReport();switchMainTab('dashboard');}
+}
+
+// ── 店铺设置 + 员工管理 ──
+async function loadSettings(){
+  try{var r=await fetch('/api/admin/storecfg');var d=await r.json();
+  document.getElementById('cfgName').value=d.name||'';document.getElementById('cfgEmoji').value=d.emoji||'';document.getElementById('cfgColor').value=d.color||'#1a1a2e';
+  }catch(e){}
+  loadEmployeeList();
+}
+async function loadEmployeeList(){
+  try{var r=await fetch('/api/admin/list-users');var users=await r.json();
+  var h='';
+  users.forEach(function(u){
+    h+='<div style="padding:10px 0;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center;font-size:13px;flex-wrap:wrap">';
+    h+='<span>👤 <b>'+u.user+'</b> <span style="color:#999;font-size:11px">('+(u.role==='manager'?'店长':'店员')+')</span></span>';
+    h+='<span style="display:flex;align-items:center;gap:6px">';
+    if(u.rfid_uid){
+      h+='<span style="font-size:11px;color:#27ae60">💳 '+u.rfid_uid+'</span>';
+      h+='<button onclick="unbindRFID(\''+u.user+'\')" style="background:#fef5e7;color:#e67e22;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:11px">解绑</button>';
+    }else{
+      h+='<span style="font-size:11px;color:#ccc">未绑卡</span>';
+      h+='<button onclick="startBindRFID(\''+u.user+'\')" style="background:#e8f4fd;color:#2980b9;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:11px">绑卡</button>';
+    }
+    h+='<button onclick="deleteEmployee(\''+u.user+'\')" style="background:#fdedec;color:#e74c3c;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:11px">🗑</button>';
+    h+='</span></div>';
+  });
+  document.getElementById('empList').innerHTML=h||'<div class="empty-state">暂无员工</div>';
+  }catch(e){}
+}
+var rfidBindUser=null,rfidBindTimer=null;
+function startBindRFID(user){
+  rfidBindUser=user;
+  document.getElementById('empListMsg').style.display='block';
+  document.getElementById('empListMsg').textContent='⏳ 请在RFID读卡器上刷卡...';
+  document.getElementById('empListMsg').style.color='#e67e22';
+  if(rfidBindTimer)clearInterval(rfidBindTimer);
+  rfidBindTimer=setInterval(async function(){
+    try{
+      var r=await fetch('/api/rfid-poll');
+      var d=await r.json();
+      if(d.card&&d.uid){
+        clearInterval(rfidBindTimer);
+        var resp=await fetch('/api/admin/bind-rfid',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'uid='+d.uid+'&user='+encodeURIComponent(rfidBindUser)});
+        var rd=await resp.json();
+        if(rd.ok){
+          document.getElementById('empListMsg').textContent='✅ 已绑定 '+rfidBindUser;
+          document.getElementById('empListMsg').style.color='#27ae60';
+        }else{
+          document.getElementById('empListMsg').textContent='❌ '+(rd.msg||'绑定失败');
+          document.getElementById('empListMsg').style.color='#e74c3c';
+        }
+        setTimeout(function(){document.getElementById('empListMsg').style.display='none';},2000);
+        loadEmployeeList();
+      }
+    }catch(e){}
+  },500);
+}
+async function unbindRFID(user){
+  if(!confirm('确认解绑 '+user+' 的RFID卡？'))return;
+  try{
+    var r=await fetch('/api/admin/unbind-rfid',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'user='+encodeURIComponent(user)});
+    var d=await r.json();
+    if(d.ok)loadEmployeeList();else alert(d.msg||'操作失败');
+  }catch(e){alert('网络错误');}
+}
+async function createEmployee(){
+  var u=document.getElementById('newEmpUser').value.trim();
+  var p=document.getElementById('newEmpPwd').value;
+  var r=document.getElementById('newEmpRole').value;
+  if(!u||!p){alert('请填写用户名和密码');return;}
+  if(p.length<3){alert('密码至少3位');return;}
+  try{
+    var resp=await fetch('/api/admin/create-user',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'newUser='+encodeURIComponent(u)+'&newPwd='+encodeURIComponent(p)+'&newRole='+r});
+    var d=await resp.json();
+    if(d.ok){
+      document.getElementById('newEmpUser').value='';document.getElementById('newEmpPwd').value='';
+      var m=document.getElementById('empListMsg');m.style.display='block';m.textContent='✅ 已创建 '+u;
+      setTimeout(function(){m.style.display='none';},2000);
+      loadEmployeeList();
+    }else{alert(d.msg||'创建失败');}
+  }catch(e){alert('网络错误: '+e.message);}
+}
+async function deleteEmployee(user){
+  if(!confirm('确认删除员工 "'+user+'"？'))return;
+  try{
+    var resp=await fetch('/api/admin/delete-user',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'user='+encodeURIComponent(user)});
+    var d=await resp.json();
+    if(d.ok)loadEmployeeList();else alert(d.msg||'删除失败');
+  }catch(e){alert('网络错误: '+e.message);}
+}
+async function saveSettings(){
+  var name=document.getElementById('cfgName').value.trim();
+  var emoji=document.getElementById('cfgEmoji').value.trim();
+  var color=document.getElementById('cfgColor').value;
+  await fetch('/api/admin/storecfg',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'name='+encodeURIComponent(name)+'&emoji='+encodeURIComponent(emoji)+'&color='+encodeURIComponent(color)});
+  document.getElementById('cfgSaved').style.display='inline';
+  document.getElementById('storeTitle').textContent=emoji+' '+name;
+  document.getElementById('topBar').style.background='linear-gradient(135deg,'+color+','+darkenColor(color)+')';
+  setTimeout(function(){document.getElementById('cfgSaved').style.display='none';},2000);
+}
+function darkenColor(hex){var num=parseInt(hex.replace('#',''),16);var r=Math.max(0,(num>>16)-40);var g=Math.max(0,((num>>8)&255)-20);var b=Math.max(0,(num&255)-10);return '#'+((r<<16)+(g<<8)+b).toString(16).padStart(6,'0');}
+
+// ── 操作日志 ──
+async function loadLogs(){
+  try{var r=await fetch('/api/admin/oplogs');var logs=await r.json();
+  var h='';
+  if(logs.length===0)h='<div class="empty-state">暂无操作记录</div>';
+  else{logs.reverse();logs.forEach(function(l){
+    h+='<div style="padding:7px 0;border-bottom:1px solid #f0f0f0;font-size:13px"><span style="color:#999">'+l.t+'</span> <b>'+l.u+'</b> '+l.a+' <span style="color:#888">'+l.d+'</span></div>';
+  });}
+  document.getElementById('logList').innerHTML=h;
+  }catch(e){}
+}
+
+// ── 导出日报 ──
+function adminReportCanvas(text){
+  var width=384,left=24,right=360,lineHeight=20;
+  var measure=document.createElement('canvas').getContext('2d');
+  measure.font='15px "Microsoft YaHei","PingFang SC",sans-serif';
+  var lines=[];
+  text.split(/\r?\n/).forEach(function(line){
+    if(!line){lines.push('');return;}
+    var current='';
+    Array.from(line).forEach(function(ch){
+      if(measure.measureText(current+ch).width>right-left&&current){lines.push(current);current=ch;}
+      else current+=ch;
+    });
+    lines.push(current);
+  });
+  var height=Math.min(2400,Math.max(480,28+lines.length*lineHeight));
+  var canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
+  var ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,width,height);ctx.fillStyle='#000';
+  ctx.textBaseline='top';ctx.font='15px "Microsoft YaHei","PingFang SC",sans-serif';
+  var y=12;lines.forEach(function(line){if(y+lineHeight<height){ctx.fillText(line,left,y);y+=lineHeight;}});
+  return canvas;
+}
+function submitAdminPrint(canvas){
+  var pixels=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
+  var packed=new Uint8Array((canvas.width>>3)*canvas.height);
+  for(var y=0;y<canvas.height;y++)for(var x=0;x<canvas.width;x++){
+    var p=(y*canvas.width+x)*4;
+    if(pixels[p+3]>64&&(pixels[p]*0.299+pixels[p+1]*0.587+pixels[p+2]*0.114)<150)packed[y*(canvas.width>>3)+(x>>3)]|=0x80>>(x&7);
+  }
+  return fetch('/api/printer/submit?width='+canvas.width+'&height='+canvas.height+'&kind=report',{
+    method:'POST',headers:{'Content-Type':'application/octet-stream'},body:packed
+  }).then(function(r){return r.json()});
+}
+async function printDailyReport(reportText){
+  try{
+    var report=reportText||await (await fetch('/api/admin/export-report',{cache:'no-store'})).text();
+    var result=await submitAdminPrint(adminReportCanvas(report));
+    alert(result.ok?'日报已加入打印队列':'打印失败：'+(result.msg||'队列繁忙'));
+  }catch(e){alert('日报未能加入打印队列');}
+}
+async function exportReport(){
+  try{
+    var response=await fetch('/api/admin/export-report?t='+Date.now(),{cache:'no-store'});
+    if(!response.ok)throw new Error('HTTP '+response.status);
+    var report=await response.text();
+    var blob=new Blob([report],{type:'text/plain;charset=utf-8'});
+    var link=document.createElement('a');link.href=URL.createObjectURL(blob);
+    link.download='每日经营报告.txt';document.body.appendChild(link);link.click();link.remove();
+    setTimeout(function(){URL.revokeObjectURL(link.href)},1000);
+    await printDailyReport(report);
+  }catch(e){alert('日报导出失败：'+e.message);}
+}
+
+// ── 权限控制 ──
+(function initRoleUI(){
+  if(!isManager){
+    // 店员：隐藏营业统计卡片、删除按钮、AI分析、设置入口
+    document.querySelectorAll('.manager-only').forEach(function(el){el.style.display='none';});
+    // 用CSS隐藏统计卡片，保留扫码进货
+    var cards=document.querySelectorAll('.stat-card');
+    if(cards.length>=3){cards[0].style.display='none';cards[2].style.display='none';} // 隐藏营业额和客单价
+  }
+  // 加载店铺名称
+  fetch('/api/admin/storecfg').then(function(r){return r.json()}).then(function(d){
+    document.getElementById('storeTitle').textContent=(d.emoji||'📊')+' '+(d.name||'商家管理中心');
+    if(d.color)document.getElementById('topBar').style.background='linear-gradient(135deg,'+d.color+','+darkenColor(d.color)+')';
+  }).catch(function(){});
+})();
+
+// ===== 启动 =====
+loadDashboard();
+setInterval(loadDashboard,30000);
+// 读取cookie中的用户名
+var cname='admin_user=';
+var cookieUser=document.cookie.split(';').find(function(c){return c.trim().startsWith(cname)});
+if(cookieUser)document.getElementById('loginUser').textContent='👤 '+decodeURIComponent(cookieUser.split('=')[1])+' ('+(isManager?'店长':'店员')+')';
+else document.getElementById('loginUser').textContent='👤 未登录';
+
+setInterval(function(){document.getElementById('currentTime').textContent=nowStr();},10000);
+</script>
+</body>
+</html>

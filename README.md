@@ -35,6 +35,10 @@
 │
 ├── rk3568/                         RK3568 板端
 │   ├── store-backend/              8094 商品/购物车/订单 + 8095 扫码 + 8096 OCR
+│   │   ├── store_ext.py            8094 扩展层：会员/RFID/审批/打印队列/顾客端
+│   │   ├── store_ext_routes.py     8094 扩展层 80 条路由 + 权限分级
+│   │   ├── qr_svg.py               /qr-svg 内联二维码（零依赖）
+│   │   └── web/                    原工程 10 个页面的逐字节副本
 │   ├── fruit-model/                8089 水果识别（YOLO11 + RKNN）
 │   ├── fruit-fusion/               8099 视觉 × 重量融合判定  ← 本次新增
 │   ├── fruit-train/                8 类水果模型训练 + RKNN 转换流水线
@@ -174,6 +178,7 @@ idf.py -p <PORT> flash monitor
 ```bash
 # 服务代码
 scp rk3568/store-backend/*.py linaro@<板子IP>:/home/linaro/ai/store/
+scp -r rk3568/store-backend/web/. linaro@<板子IP>:/home/linaro/ai/store/web/
 scp rk3568/fruit-fusion/*.py  linaro@<板子IP>:/home/linaro/ai/fruit-fusion/
 
 # systemd 单元
@@ -197,12 +202,37 @@ sudo systemctl enable --now rk3568-store.service rk3568-fruit.service rk3568-fru
 | 8091 | 雷达 | 激光雷达点云 |
 | 8092 | VLM | 视觉大模型代理 |
 | 8093 | 数据集采集 | 抓图打标 |
-| 8094 | 门店后端 | 商品 / 购物车 / 订单 |
+| 8094 | 门店后端 | 商品 / 购物车 / 订单 + **原工程那套完整页面**（会员/审批/顾客端） |
 | 8095 | 扫码枪 | 条码解析 |
 | 8096 | OCR | 票据识别 |
 | **8099** | **水果 视觉 × 重量 融合** | **本次新增** |
 
 > 8090 和 8099 都叫"融合"，但完全无关。8090 是雷达背景变化 + 视觉人形判断"有没有顾客在"，8099 才是"这个水果是什么、多重、收不收"。
+
+### 4.1 8094 的扩展层（补完原工程 52 个缺口）
+
+`store_service.py` 只管收银主链路（商品/购物车/订单/打印），原工程另外那 52 个端点
+（管理员登录、会员、RFID、临期改价与补货审批、打印光栅队列、收银台页、移动支付、
+报表/大屏/AI 分析、服务工单、顾客端 PWA、顾客分析、店铺配置）由扩展层补齐：
+
+- `store_ext.py` —— 模型层，和 `store_service.py` **共用同一个 sqlite 连接和锁**
+- `store_ext_routes.py` —— HTTP 层，80 条路由，挂在 `StoreHandler` 前面先问
+- `web/` —— 原工程 10 个页面的**逐字节副本**（`tools/extract_legacy_web.py` 生成，可 `--check` 复核）
+
+**三个必须知道的约定**（踩了会静默出错，不会报错）：
+
+1. **它是静默降级的**。`store_ext.py` 导入失败时 `store_service.py` 照常启动，
+   只是原工程页面全 404、`/` 退回内建看板。启动日志里那行
+   `扩展层已挂载：80 条路由` 就是判断依据。设 `STORE_EXT=0` 可显式关掉。
+2. **`/api/order-history` 返回的是裸 JSON 数组**，而且**旧的在前**。
+   页面 `orders = await or.json()` 之后直接 `orders.forEach(...)`；包一层对象或者顺序反了，
+   页面会**静默**变成订单列表空白 + 营收 ¥0.00。
+3. **`POST /api/admin/refund` 的 `orderId` 是上面那个数组的下标**，不是订单主键
+   （原工程 `orders[orderId]` 的语义，页面 `refundOrder(i)` 就是这么传的）。
+   想按真实主键退，用 `order_id` 参数。
+
+认证也和原工程不同：原工程只看 `admin_auth=1` 这个 cookie，**谁手设一个就是管理员**。
+现在换成了服务端 `auth_sessions` 真会话 + `HttpOnly` cookie，页面一行没改。
 
 ---
 
@@ -318,6 +348,9 @@ python tools/test_check_py37.py
 - ✅ 268 个测试全绿，全部通过 Python 3.7 语法校验
 - ✅ 8 类训练 + RKNN 转换流水线（含类别名一致性守卫）
 - ✅ 板端服务代码与 systemd 单元
+- ✅ **原工程 81 个接口中那 52 个缺口已全部补齐**（`store_ext.py` + `store_ext_routes.py`
+  + 原工程 10 个页面的逐字节副本），8094 的回归从 38 项扩到 **598 项**，全绿
+- ✅ 顺手堵掉原工程的认证漏洞（`admin_auth=1` 谁设谁是管理员）
 
 **待办**
 
@@ -325,7 +358,9 @@ python tools/test_check_py37.py
 - ⬜ 8 类模型训练与 RKNN 转换（卡在转换机口令）
 - ⬜ 打印链路选型：384 点光栅 vs ESC/POS + GBK
 - ⬜ `top1` 与 `normalize` 两种概率模式二选一
-- ⬜ 原 81 个接口中，**24 个已覆盖、5 个废弃/移出主线、52 个仍缺**（逐条比对结果见 `docs/RK3568-迁移总览.md` §6）
+- ⬜ ESP32-S3 从机固件（HX711 称重 + I2S 语音 + WS2812 + DHT22 + 按键）——
+  缺口表里剩下的都是固件侧的，不归 8094 管
+- ⬜ SKU 识别流水线骨架（标注工具 / 训练脚本 / INT8 校准 / `deploy_model.sh` 替换流程）
 
 **明确不做**
 
@@ -374,14 +409,22 @@ python tools/test_check_py37.py
   python tools/test_calibrate_int8.py     # INT8 校准工具的自测（不需要板子）
   ```
 
-  收银后端还有 77 个回归测试，**要先把服务跑起来**（E2E 打的是 HTTP 接口）：
+  收银后端这边分两种：
 
   ```bash
   cd rk3568/store-backend
+
+  # 不需要起服务，纯进程内自测（共 521 项）
+  python test_store_ext.py     # 227 项：扩展层模型 + HTTP 层
+  python test_qr_svg.py        # 294 项：二维码编码器
+
+  # 打 HTTP 接口的端到端回归（38 项），**要先把服务跑起来**
   python store_service.py --port 8094 --db /tmp/store.db --receipt-dir /tmp/receipts &
   python test_ocr_parse.py && python test_scanner_decode.py
   python test_store_e2e.py --base http://127.0.0.1:8094
   ```
+
+  板端回归基线合计 **598 项**（store 38 + scanner 20 + ocr 19 + 扩展层 227 + 二维码 294）。
 
   > `test_store_e2e.py` 的 `--base` 既能打本地也能打板端
   > （`--base http://<板端IP>:8094`），所以它同时也是端到端验收脚本。
@@ -467,7 +510,7 @@ systemd unit 的 `WorkingDirectory` / `ExecStart`，以及部署脚本里实际�
 板子插电、接上同一个网之后，按顺序跑这三条。**前一条不绿就别往下走。**
 
 ```bash
-# 1) 一键验收 —— 服务健康 + 部署一致性 + 77 项回归，一次跑完
+# 1) 一键验收 —— 服务健康 + 部署一致性 + 598 项回归，一次跑完
 python tools/board_acceptance.py --board <板端IP>
 
 # 2) 30 分钟持续压测 —— 温度 / FPS / 雷达掉线率 / NPU 错误
@@ -486,7 +529,7 @@ python tools/calibrate_int8.py collect --board <板端IP> --count 200
 | 0 | 先探 `:8094` 通不通 | 板子没上电 / 不在同一网段 / IP 变了 —— 立刻收工，不干等 |
 | 1 | 十个服务健康检查（8088–8096 + 8099，并发探） | 某个服务没起来，去看对应 systemd unit |
 | 2 | 本地 vs 板端哈希核对 | **本地改了没部署** —— 跑对应模块的部署脚本 |
-| 3 | 77 项回归（板端执行） | 板端代码有问题 |
+| 3 | 598 项回归（板端执行） | 板端代码有问题 |
 
 ```bash
 python tools/board_acceptance.py --board 192.168.43.44                 # 全跑

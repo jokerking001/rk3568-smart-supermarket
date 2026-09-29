@@ -36,6 +36,7 @@ import threading
 import time
 import urllib.parse
 from datetime import datetime, timedelta
+from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 DEFAULT_PORT = 8094
@@ -960,6 +961,9 @@ refreshAll();setInterval(refreshAll,5000);
 
 class StoreHandler(BaseHTTPRequestHandler):
     store = None
+    # 扩展层（store_ext_routes.ExtRouter）。挂上之后**先**问它，它返回 None
+    # 才轮到下面这些内建路由。没挂（web/ 没部署、或者导入失败）就照常跑内建面板。
+    ext_router = None
     server_version = "rk3568-store/1.0"
 
     def log_message(self, fmt, *args):
@@ -982,9 +986,13 @@ class StoreHandler(BaseHTTPRequestHandler):
     def _json(self, payload, code=200):
         self._send(code, json.dumps(payload, ensure_ascii=False))
 
-    def _body(self):
+    def _raw_body(self):
         length = int(self.headers.get("Content-Length") or 0)
-        raw = self.rfile.read(length) if length else b""
+        return self.rfile.read(length) if length else b""
+
+    def _body(self, raw=None):
+        if raw is None:
+            raw = self._raw_body()
         if not raw:
             return {}
         text = raw.decode("utf-8", "replace")
@@ -997,6 +1005,50 @@ class StoreHandler(BaseHTTPRequestHandler):
         parsed = urllib.parse.parse_qs(text)
         return {k: v[0] for k, v in parsed.items()}
 
+    # ------------------------------------------------------------ 扩展层挂载
+    def _cookies(self):
+        """把 Cookie 头拆成 dict。畸形头直接忽略，不能让一个坏 cookie 打 500。"""
+        jar = {}
+        header = self.headers.get("Cookie") or ""
+        if not header:
+            return jar
+        try:
+            parsed = SimpleCookie()
+            parsed.load(header)
+        except CookieError:
+            return jar
+        for name, morsel in parsed.items():
+            jar[name] = morsel.value
+        return jar
+
+    def _ext(self, method, path, params, payload, raw):
+        """先让扩展层处理；不归它管就返回 None，交回内建路由。"""
+        router = self.ext_router
+        if router is None:
+            return None
+        try:
+            return router.handle(method, path, params, payload, raw,
+                                 dict(self.headers.items()), self._cookies())
+        except Exception as exc:                      # noqa: BLE001
+            # 扩展层炸了不能把整个收银服务带走 —— 记一条日志，继续走内建路由。
+            # 但**必须响亮**，否则页面上会变成「接口莫名其妙不存在」。
+            print("ext router error %s %s: %r" % (method, path, exc), flush=True)
+            return None
+
+    def _send_reply(self, reply):
+        body = reply.bytes()
+        self.send_response(reply.status)
+        self.send_header("Content-Type", reply.content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        for key, value in reply.headers:
+            self.send_header(key, value)
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+
     def _params(self):
         parsed = urllib.parse.urlparse(self.path)
         return parsed.path, {k: v[0] for k, v in urllib.parse.parse_qs(parsed.query).items()}
@@ -1006,6 +1058,11 @@ class StoreHandler(BaseHTTPRequestHandler):
         path, params = self._params()
         store = self.store
         try:
+            # 扩展层优先。它返回 None 表示这条不归它管（含 web/ 没部署的情况），
+            # 那就继续往下走内建路由 —— `/` 会退回内置看板。
+            ext_reply = self._ext("GET", path, params, {}, b"")
+            if ext_reply is not None:
+                return self._send_reply(ext_reply)
             if path in ("/", "/index.html"):
                 return self._send(200, DASHBOARD, "text/html; charset=utf-8")
             if path == "/api/store/status":
@@ -1063,8 +1120,14 @@ class StoreHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         path, params = self._params()
         store = self.store
-        payload = self._body()
+        # 原始字节只读一次：扩展层的打印机接口收的就是裸光栅，
+        # 而下面 _body() 会把它解析成 dict —— 解析完就没法再拿回原样了。
+        raw = self._raw_body()
+        payload = self._body(raw)
         try:
+            ext_reply = self._ext("POST", path, params, payload, raw)
+            if ext_reply is not None:
+                return self._send_reply(ext_reply)
             if path == "/api/cart/add":
                 ok, message, _ = store.add_to_cart(
                     code=payload.get("code"), name=payload.get("name"),
@@ -1132,6 +1195,29 @@ class StoreHandler(BaseHTTPRequestHandler):
             return self._json({"ok": False, "message": "内部错误: %s" % exc}, 500)
 
 
+def _mount_ext(handler, store):
+    """把扩展层挂到 handler 上。挂不上就只跑内建面板 —— 降级，不是崩掉。
+
+    扩展层补的是原工程 81 个接口里 store_service 没覆盖的那 52 个（会员、RFID、
+    审批、打印队列、顾客端…）。少了它收银主链路照样能跑，所以导入失败时
+    打印一条**响亮**的日志继续启动，而不是让整个服务起不来。
+    """
+    if os.environ.get("STORE_EXT", "1") in ("0", "false", "no", "off"):
+        print("STORE_EXT=0 —— 只启用内建面板", flush=True)
+        return None
+    try:
+        import store_ext
+        import store_ext_routes
+    except ImportError as exc:
+        print("扩展层未加载（%s）—— 只有内建面板可用，原工程页面会 404"
+              % exc, flush=True)
+        return None
+    router = store_ext_routes.ExtRouter(store_ext.StoreExt(store))
+    print("扩展层已挂载：%d 条路由" % store_ext_routes.route_count(), flush=True)
+    handler.ext_router = router
+    return router
+
+
 def main():
     parser = argparse.ArgumentParser(description="RK3568 supermarket store backend")
     parser.add_argument("--host", default="0.0.0.0")
@@ -1141,6 +1227,7 @@ def main():
     args = parser.parse_args()
 
     StoreHandler.store = Store(args.db, args.receipt_dir)
+    _mount_ext(StoreHandler, StoreHandler.store)
     server = ThreadingHTTPServer((args.host, args.port), StoreHandler)
     server.daemon_threads = True
     print("store service listening on %d (db=%s)" % (args.port, args.db), flush=True)

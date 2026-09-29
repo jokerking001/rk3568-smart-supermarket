@@ -5,7 +5,7 @@
 
   1. 十个服务的健康检查（8088-8096 + 8099）
   2. 本地工程 vs 板端部署副本的哈希核对（复用 check_board_sync）
-  3. 77 项回归基线（store 38 + scanner 20 + ocr 19，在板端跑）
+  3. 598 项回归基线（store 38 + scanner 20 + ocr 19 + 扩展层 227 + 二维码 294，在板端跑）
 
 用法：
 
@@ -68,7 +68,13 @@ REGRESSION = [
     ("/home/linaro/ai/store",   "test_store_e2e.py",     38),
     ("/home/linaro/ai/scanner", "test_scanner_decode.py", 20),
     ("/home/linaro/ai/ocr",     "test_ocr_parse.py",      19),
+    # 扩展层那两个自测也上板跑：它们一个断言业务规则、一个断言二维码编码，
+    # 都是纯 Python 无第三方依赖，板上直接能跑。本机通过 ≠ 板上通过。
+    ("/home/linaro/ai/store",   "test_store_ext.py",     227),
+    ("/home/linaro/ai/store",   "test_qr_svg.py",        294),
 ]
+
+REGRESSION_TOTAL = sum(item[2] for item in REGRESSION)
 
 # 8094 的 E2E 测试打的是 HTTP 接口，跑之前得保证服务在。
 E2E_BASE = "http://127.0.0.1:8094"
@@ -262,7 +268,7 @@ def check_sync(board, user, key, timeout):
 
 
 def check_regression(board, user, key, timeout, local=False):
-    """在板端跑三个回归测试。E2E 那个需要 8094 先起来。
+    """在板端跑回归测试（见 REGRESSION）。E2E 那个需要 8094 先起来。
 
     local=True 时直接在**当前机器**上跑（也就是板子本机），不走 SSH。
     """
@@ -304,12 +310,20 @@ def shell_run(command, timeout=120):
 
 
 def parse_passed(text):
-    """从 unittest 输出里抠出通过数。找不到返回 None（而不是 0）。"""
+    """从测试输出里抠出通过数。找不到返回 None（而不是 0）。
+
+    两种汇总格式都要认：
+
+      * ``== 38 passed, 0 failed ==``          store / scanner / ocr 那三个
+      * ``✅ 227 项全部通过 —— 扩展层与路由可信`` 扩展层那两个自测
+
+    认不出来就返回 None，让上层判成 FAIL —— 「读不到通过数」绝不能当成通过。
+    """
     for line in reversed((text or "").splitlines()):
         line = line.strip()
         if line.startswith("OK") or line.startswith("FAILED") or line.startswith("Ran "):
             continue
-        if "passed" in line:
+        if "项全部通过" in line or "passed" in line:
             digits = ""
             for ch in line:
                 if ch.isdigit():
@@ -385,7 +399,7 @@ def main():
     if args.skip_regression:
         print("\n[3/3] 回归基线 —— 已跳过")
     else:
-        print("\n[3/3] 回归基线（板端执行，共 77 项）")
+        print("\n[3/3] 回归基线（板端执行，共 %d 项）" % REGRESSION_TOTAL)
         reg, reg_fail = check_regression(board, args.user, args.key,
                                          args.ssh_timeout, local=args.local)
         for filename, expected, passed, status, tail in reg:

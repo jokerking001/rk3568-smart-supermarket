@@ -1,0 +1,155 @@
+{
+  "source": "firmware/store-controller/WebServer.cpp",
+  "pages": [
+    {
+      "path": "/",
+      "method": "GET",
+      "name": "index",
+      "file": "index.html",
+      "content_type": "text/html; charset=utf-8",
+      "kind": "static",
+      "source_lines": [
+        733,
+        1801
+      ],
+      "sha256": "96797c5617a9b6be45d4dd00c186f7fd2ee3eb949d3a25d3a2f96b311fc4c941",
+      "bytes": 55713,
+      "lines": 1067
+    },
+    {
+      "path": "/admin/qr-confirm",
+      "method": "GET",
+      "name": "admin-qr-confirm",
+      "file": "admin-qr-confirm.html",
+      "content_type": "text/html; charset=utf-8",
+      "kind": "static",
+      "source_lines": [
+        2047,
+        2088
+      ],
+      "sha256": "2c1ae8c53623b98468cb295593b6c76676050e6d8cec0a23a1b74a14f8613825",
+      "bytes": 1840,
+      "lines": 40
+    },
+    {
+      "path": "/admin",
+      "method": "GET",
+      "name": "admin-login",
+      "file": "admin-login.html",
+      "content_type": "text/html; charset=utf-8",
+      "kind": "static",
+      "source_lines": [
+        2372,
+        2597
+      ],
+      "sha256": "756e71f52d8d9dbf15aaa8b988baba86079189acefb6ed2c8f728acc2441eefd",
+      "bytes": 11168,
+      "lines": 224
+    },
+    {
+      "path": "/admin",
+      "method": "GET",
+      "name": "admin",
+      "file": "admin.html",
+      "content_type": "text/html; charset=utf-8",
+      "kind": "static",
+      "source_lines": [
+        2602,
+        3424
+      ],
+      "sha256": "2dd7f9118fb54176fe3cb0facab90eac4e574a074116c6479938d8990636e440",
+      "bytes": 50226,
+      "lines": 820
+    },
+    {
+      "path": "/pay",
+      "method": "GET",
+      "name": "pay",
+      "file": "pay.html",
+      "content_type": "text/html; charset=utf-8",
+      "kind": "template",
+      "source_lines": [
+        3532,
+        3586
+      ],
+      "sha256": "c0018df74288c7487223967c3e58a9c4f3aee7e2e76ec71758bf2a62933bc770",
+      "bytes": 2405,
+      "lines": 53
+    },
+    {
+      "path": "/bigscreen",
+      "method": "GET",
+      "name": "bigscreen",
+      "file": "bigscreen.html",
+      "content_type": "text/html; charset=utf-8",
+      "kind": "static",
+      "source_lines": [
+        4227,
+        4436
+      ],
+      "sha256": "353ca3f49182b0533e67a0512c5cba20b4a71eaf9a9d4d2ab16671d01c1e81d7",
+      "bytes": 9293,
+      "lines": 208
+    },
+    {
+      "path": "/manifest.webmanifest",
+      "method": "GET",
+      "name": "manifest.webmanifest",
+      "file": "manifest.webmanifest",
+      "content_type": "application/manifest+json",
+      "kind": "static",
+      "source_lines": [
+        616,
+        616
+      ],
+      "sha256": "0ca1ca5c21e7cf3e4a732cf40ac3ea7a8542dbf165c2fd6a8181903694f9cfc5",
+      "bytes": 262,
+      "lines": 1
+    },
+    {
+      "path": "/icon.svg",
+      "method": "GET",
+      "name": "icon.svg",
+      "file": "icon.svg",
+      "content_type": "image/svg+xml",
+      "kind": "static",
+      "source_lines": [
+        619,
+        619
+      ],
+      "sha256": "6dab021a8e80c1fdd0c09589169b6c1ddafa58d5af00f4ae40f974d41eb02c18",
+      "bytes": 455,
+      "lines": 1
+    },
+    {
+      "path": "/sw.js",
+      "method": "GET",
+      "name": "sw.js",
+      "file": "sw.js",
+      "content_type": "application/javascript",
+      "kind": "static",
+      "source_lines": [
+        623,
+        623
+      ],
+      "sha256": "00059fe566ed0cd006aeca564bd142dd55737c779949925d097aba9871951c49",
+      "bytes": 483,
+      "lines": 1
+    },
+    {
+      "path": "/customer/qr",
+      "method": "GET",
+      "name": "customer-qr.html",
+      "file": "customer-qr.html",
+      "content_type": "text/html; charset=utf-8",
+      "kind": "template",
+      "source_lines": [
+        607,
+        607
+      ],
+      "sha256": "5a543b2a53aa605418e47d9be418225a152a7a4b34cfd8cd38e8f61fd6edfd54",
+      "bytes": 445,
+      "lines": 1
+    }
+  ]
+}

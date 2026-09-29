@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>商家管理中心 - 登录</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+body {
+    display: flex; justify-content: center; align-items: center; min-height: 100vh;
+    background: linear-gradient(-45deg, #0f172a, #1e1b4b, #2e1065, #0f172a);
+    background-size: 400% 400%; animation: gradientBg 15s ease infinite; overflow: hidden;
+}
+@keyframes gradientBg { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+
+/* 装饰背景光晕 */
+.circle { position: absolute; border-radius: 50%; filter: blur(80px); z-index: 1; opacity: 0.5; }
+.circle-1 { width: 300px; height: 300px; top: 15%; left: 15%; background: linear-gradient(135deg, #3b82f6, #8b5cf6); }
+.circle-2 { width: 400px; height: 400px; bottom: 10%; right: 15%; background: linear-gradient(135deg, #ec4899, #8b5cf6); }
+
+/* 玻璃拟态主体卡片 */
+.card {
+    position: relative; width: 90%; max-width: 400px; padding: 40px;
+    background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px;
+    box-shadow: 0 25px 45px rgba(0, 0, 0, 0.2); z-index: 10; text-align: center;
+}
+
+.icon { font-size: 42px; margin-bottom: 10px; filter: drop-shadow(0 0 10px rgba(59,130,246,0.8)); }
+.title { font-size: 24px; font-weight: 700; color: #fff; margin-bottom: 5px; letter-spacing: 1px; }
+.sub { font-size: 13px; color: rgba(255,255,255,0.5); margin-bottom: 24px; }
+
+/* 顶部选项卡 (分段控制器) */
+.tabs { display: flex; background: rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 5px; margin-bottom: 20px; border: 1px solid rgba(255, 255, 255, 0.1); }
+.tab-btn { flex: 1; padding: 10px; cursor: pointer; color: rgba(255,255,255,0.5); font-weight: 600; font-size: 14px; border-radius: 8px; transition: 0.3s; }
+.tab-btn.active { background: #3b82f6; color: #fff; box-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
+
+/* 输入框特效 */
+.input-group { position: relative; margin-bottom: 20px; text-align: left; }
+.input-group input {
+    width: 100%; padding: 14px 16px; background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px;
+    outline: none; color: #fff; font-size: 15px; transition: 0.3s;
+}
+.input-group input:focus, .input-group input:valid { border-color: #3b82f6; background: rgba(255, 255, 255, 0.15); box-shadow: 0 0 15px rgba(59, 130, 246, 0.3); }
+.input-group label { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: rgba(255, 255, 255, 0.5); pointer-events: none; transition: 0.3s; font-size: 15px; }
+/* 重点修补：如果输入框内有值，标签自动上浮 */
+.input-group input:focus ~ label, .input-group input:valid ~ label, .input-group input.has-val ~ label {
+    top: -10px; left: 10px; font-size: 12px; color: #3b82f6; padding: 0 5px; background: #11132d; border-radius: 4px;
+}
+
+/* 按钮特效 */
+button {
+    width: 100%; padding: 14px; background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899, #3b82f6); background-size: 300% 100%;
+    border: none; border-radius: 10px; color: #fff; font-size: 16px; font-weight: 600; cursor: pointer; transition: 0.5s; letter-spacing: 1px;
+    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4); margin-top: 5px;
+}
+button:hover { background-position: 100% 0; box-shadow: 0 4px 25px rgba(236, 72, 153, 0.6); transform: translateY(-2px); }
+button:active { transform: translateY(0); }
+.btn-secondary { background: rgba(255, 255, 255, 0.1); box-shadow: none; color: #bbb; border: 1px solid rgba(255, 255, 255, 0.2); }
+.btn-secondary:hover { background: rgba(255, 255, 255, 0.15); box-shadow: none; color: #fff; }
+
+.err { color: #ef4444; font-size: 13px; margin-bottom: 15px; min-height: 18px; text-shadow: 0 0 5px rgba(239,68,68,0.5); }
+#regTip { font-size: 12px; color: rgba(255,255,255,0.7); margin-bottom: 15px; padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; }
+
+/* QR面板专属 */
+.qr-box { background: rgba(255,255,255,0.9); padding: 10px; border-radius: 15px; width: 220px; height: 220px; margin: 0 auto 15px auto; box-shadow: 0 0 20px rgba(59, 130, 246, 0.5); }
+</style>
+</head>
+<body>
+<div class="circle circle-1"></div>
+<div class="circle circle-2"></div>
+
+<div class="card" id="loginCard">
+    <div class="icon">🔐</div>
+    <div class="title">商家管理中心</div>
+    <div class="sub">登录或注册新账户</div>
+
+    <div class="tabs">
+        <div class="tab-btn active" id="tabLogin" onclick="switchMode('login')">密码登录</div>
+        <div class="tab-btn" id="tabReg" onclick="switchMode('reg')">账户注册</div>
+        <div class="tab-btn" id="tabQr" onclick="switchMode('qr')">扫码进入</div>
+    </div>
+    
+    <div class="err" id="err"></div>
+
+    <div id="panelPwd">
+        <form onsubmit="doSubmit();return false">
+            <div class="input-group">
+                <input type="text" id="user" required autocomplete="off" oninput="this.className=this.value?'has-val':''">
+                <label>用户名</label>
+            </div>
+            <div class="input-group">
+                <input type="password" id="pwd" required onkeydown="if(event.key==='Enter')doSubmit()" oninput="this.className=this.value?'has-val':''">
+                <label>密码</label>
+            </div>
+            <div class="input-group" id="groupPwd2" style="display:none">
+                <input type="password" id="pwd2" onkeydown="if(event.key==='Enter')doSubmit()" oninput="this.className=this.value?'has-val':''">
+                <label>确认密码</label>
+            </div>
+            
+            <div id="regTip" style="display:none">💡 新注册账号默认为<b>店员</b>，店长权限请联系管理员开通</div>
+            
+            <button type="button" id="btn" onclick="doSubmit()">系统身份验证</button>
+        </form>
+    </div>
+
+    <div id="panelQR" style="display:none">
+        <div class="qr-box"><iframe id="qrFrame" src="" style="width:100%;height:100%;border:none;border-radius:10px"></iframe></div>
+        <p style="font-size:13px;color:rgba(255,255,255,0.6);margin-bottom:15px">📱 请用手机扫描二维码确认登录</p>
+        <button type="button" class="btn-secondary" onclick="switchMode('login')">返回账号登录</button>
+    </div>
+</div>
+
+<script>
+// ===============================================================
+// 💡 原汁原味的 JS 业务逻辑 (零删减，完全保留了你的高级特性)
+// ===============================================================
+var curMode='login';
+var qrTimer=null;
+var rfidTimer=null;
+
+function switchMode(m){
+    curMode=m;
+    
+    // 更新 Tab 样式 (使用 classList 适配高级 UI)
+    ['login','reg','qr'].forEach(function(t){
+        var el=document.getElementById('tab'+t.charAt(0).toUpperCase()+t.slice(1));
+        if(t===m) { el.classList.add('active'); }
+        else { el.classList.remove('active'); }
+    });
+    
+    // 面板切换 (细微修改了 pwd2 的显隐逻辑，以适应外层的 label 组)
+    document.getElementById('panelPwd').style.display=(m==='qr')?'none':'block';
+    document.getElementById('panelQR').style.display=(m==='qr')?'block':'none';
+    document.getElementById('groupPwd2').style.display=(m==='reg')?'block':'none';
+    document.getElementById('regTip').style.display=(m==='reg')?'block':'none';
+    document.getElementById('btn').textContent=(m==='reg')?'注 册 账 户':'登 录 系 统';
+    document.getElementById('err').textContent='';
+    
+    if(m==='qr'){ startQRLoop(); } else { stopQRLoop(); }
+}
+
+function stopQRLoop(){ if(qrTimer){clearInterval(qrTimer);qrTimer=null;} }
+
+// RFID改为全局后台轮询——不管在哪个栏，刷卡直接进
+async function startRFIDLoop(){
+    stopRFIDLoop();
+    rfidTimer=setInterval(async function(){
+        try{
+            var r=await fetch('/api/rfid-poll');
+            var d=await r.json();
+            if(d.card && d.user){
+                stopRFIDLoop();
+                document.cookie='admin_auth=1; path=/';
+                document.cookie='admin_user='+encodeURIComponent(d.user)+'; path=/';
+                document.cookie='admin_role='+(d.role||'staff')+'; path=/';
+                setTimeout(function(){location.href='/admin?login=1';},500);
+            }
+        }catch(e){}
+    },300);
+}
+function stopRFIDLoop(){ if(rfidTimer){clearInterval(rfidTimer);rfidTimer=null;} }
+
+// 全局后台RFID监听——任何栏位刷卡都直接登录
+startRFIDLoop();
+
+async function startQRLoop(){
+    var el=document.getElementById('qrFrame');
+    try{
+        var r=await fetch('/admin/qr-init');
+        var d=await r.json();
+        if(!d.ok){document.getElementById('err').textContent='二维码生成失败';return;}
+        el.src='/qr-svg?text='+encodeURIComponent(d.url);
+        stopQRLoop();
+        qrTimer=setInterval(async function(){
+            try{
+                var sr=await fetch('/admin/qr-status?sid='+d.sid);
+                var sd=await sr.json();
+                if(sd.confirmed){
+                    stopQRLoop();
+                    document.cookie='admin_auth=1; path=/';
+                    document.cookie='admin_user='+encodeURIComponent(sd.user)+'; path=/';
+                    document.cookie='admin_role='+(sd.role||'staff')+'; path=/';
+                    location.href='/admin?login=1';
+                }
+            }catch(e){}
+        },1500);
+    }catch(e){document.getElementById('err').textContent='网络错误';}
+}
+
+async function doSubmit(){
+    var user=document.getElementById('user').value.trim();
+    var pwd=document.getElementById('pwd').value;
+    if(!user||!pwd){document.getElementById('err').textContent='请填写用户名和密码';return;}
+    
+    if(curMode==='reg'){
+        var pwd2=document.getElementById('pwd2').value;
+        if(pwd!==pwd2){document.getElementById('err').textContent='两次密码不一致';return;}
+        if(pwd.length<3){document.getElementById('err').textContent='密码至少3位';return;}
+    }
+    
+    try{
+        var body='user='+encodeURIComponent(user)+'&pwd='+encodeURIComponent(pwd)+'&mode='+curMode;
+        var r=await fetch('/admin/login',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body});
+        var d=await r.json();
+        if(d.ok){
+            var usr=document.getElementById('user').value.trim();
+            document.cookie='admin_auth=1; path=/';
+            document.cookie='admin_user='+encodeURIComponent(usr)+'; path=/';
+            document.cookie='admin_role='+(d.role||'staff')+'; path=/';
+            location.href='/admin?login=1';
+        }
+        else {
+            document.getElementById('err').textContent=d.msg||'操作失败';
+        }
+    }catch(e){
+        document.getElementById('err').textContent='网络错误，请检查ESP32连接';
+    }
+    return false;
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>扫码登录确认</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'PingFang SC','Microsoft YaHei',sans-serif;background:#f0f2f5;display:flex;align-items:center;justify-content:center;min-height:100vh}
+.card{background:white;border-radius:16px;padding:32px 28px;width:90%;max-width:340px;box-shadow:0 4px 24px rgba(0,0,0,0.1);text-align:center}
+.icon{font-size:64px;margin-bottom:16px}
+h3{font-size:20px;color:#222;margin-bottom:6px}
+.sub{font-size:13px;color:#999;margin-bottom:24px}
+.btn-confirm{width:100%;padding:14px;background:linear-gradient(135deg,#2ecc71,#27ae60);color:white;border:none;border-radius:12px;font-size:17px;font-weight:600;cursor:pointer;font-family:inherit}
+.btn-cancel{margin-top:12px;width:100%;padding:12px;background:#f5f5f5;color:#999;border:none;border-radius:10px;font-size:14px;cursor:pointer;font-family:inherit}
+</style>
+</head>
+<body>
+<div class="card" id="card">
+<div class="icon">📱</div>
+<h3>确认登录商家后台</h3>
+<p class="sub">点击下方按钮确认登录</p>
+<button class="btn-confirm" onclick="doConfirm()">✅ 确认登录</button>
+<button class="btn-cancel" onclick="window.close()">取消</button>
+</div>
+<script>
+async function doConfirm(){
+  try{
+    var r=await fetch('/admin/qr-do-confirm',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'sid=SID_PLACEHOLDER'});
+    var d=await r.json();
+    if(d.ok){
+      document.getElementById('card').innerHTML='<div class="icon">✅</div><h3>登录成功</h3><p class="sub">电脑端将自动跳转</p>';
+    }else{
+      alert(d.msg||'确认失败，请重试');
+    }
+  }catch(e){alert('网络错误');}
+}
+</script>
+</body>
+</html>

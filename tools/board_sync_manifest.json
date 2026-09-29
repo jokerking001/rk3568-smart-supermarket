@@ -16,10 +16,106 @@
       "note": "8094 收银后端"
     },
     {
+      "local": "rk3568/store-backend/store_ext.py",
+      "remote": "/home/linaro/ai/store/store_ext.py",
+      "required": true,
+      "note": "8094 扩展层模型（会员/RFID/审批/打印队列/顾客端）。缺了 store_service 会静默降级成只有内建面板"
+    },
+    {
+      "local": "rk3568/store-backend/store_ext_routes.py",
+      "remote": "/home/linaro/ai/store/store_ext_routes.py",
+      "required": true,
+      "note": "8094 扩展层路由（80 条）。必须和 store_ext.py 同目录"
+    },
+    {
+      "local": "rk3568/store-backend/qr_svg.py",
+      "remote": "/home/linaro/ai/store/qr_svg.py",
+      "required": true,
+      "note": "/qr-svg 内联生成二维码，无第三方依赖。缺了该接口回 501"
+    },
+    {
+      "local": "rk3568/store-backend/web/index.html",
+      "remote": "/home/linaro/ai/store/web/index.html",
+      "required": true,
+      "note": "原工程收银页逐字节副本。web/ 缺失时 `/` 退回内建看板（不白屏，但原页面全没）"
+    },
+    {
+      "local": "rk3568/store-backend/web/admin.html",
+      "remote": "/home/linaro/ai/store/web/admin.html",
+      "required": true,
+      "note": "管理页。靠 /api/order-history 的**数组下标**退款"
+    },
+    {
+      "local": "rk3568/store-backend/web/admin-login.html",
+      "remote": "/home/linaro/ai/store/web/admin-login.html",
+      "required": true,
+      "note": "登录页"
+    },
+    {
+      "local": "rk3568/store-backend/web/admin-qr-confirm.html",
+      "remote": "/home/linaro/ai/store/web/admin-qr-confirm.html",
+      "required": true,
+      "note": "手机扫码确认页"
+    },
+    {
+      "local": "rk3568/store-backend/web/pay.html",
+      "remote": "/home/linaro/ai/store/web/pay.html",
+      "required": true,
+      "note": "移动支付模板页（{{total}}/{{order_no}}/{{order_id}} 由服务端填）"
+    },
+    {
+      "local": "rk3568/store-backend/web/bigscreen.html",
+      "remote": "/home/linaro/ai/store/web/bigscreen.html",
+      "required": true,
+      "note": "大屏页"
+    },
+    {
+      "local": "rk3568/store-backend/web/customer-qr.html",
+      "remote": "/home/linaro/ai/store/web/customer-qr.html",
+      "required": true,
+      "note": "顾客入口二维码页（{{url}} 由服务端填）"
+    },
+    {
+      "local": "rk3568/store-backend/web/manifest.webmanifest",
+      "remote": "/home/linaro/ai/store/web/manifest.webmanifest",
+      "required": true,
+      "note": "PWA manifest"
+    },
+    {
+      "local": "rk3568/store-backend/web/manifest.json",
+      "remote": "/home/linaro/ai/store/web/manifest.json",
+      "required": true,
+      "note": "PWA manifest（备用名）"
+    },
+    {
+      "local": "rk3568/store-backend/web/icon.svg",
+      "remote": "/home/linaro/ai/store/web/icon.svg",
+      "required": true,
+      "note": "PWA 图标"
+    },
+    {
+      "local": "rk3568/store-backend/web/sw.js",
+      "remote": "/home/linaro/ai/store/web/sw.js",
+      "required": true,
+      "note": "Service worker"
+    },
+    {
       "local": "rk3568/store-backend/test_store_e2e.py",
       "remote": "/home/linaro/ai/store/test_store_e2e.py",
       "required": false,
-      "note": "77 回归之一，板上可直接跑"
+      "note": "38 项端到端回归，板上可直接跑"
+    },
+    {
+      "local": "rk3568/store-backend/test_store_ext.py",
+      "remote": "/home/linaro/ai/store/test_store_ext.py",
+      "required": false,
+      "note": "227 项扩展层自测（模型层 + HTTP 层），板上可直接跑"
+    },
+    {
+      "local": "rk3568/store-backend/test_qr_svg.py",
+      "remote": "/home/linaro/ai/store/test_qr_svg.py",
+      "required": false,
+      "note": "294 项二维码编码器自测，无第三方依赖"
     },
     {
       "local": "rk3568/store-backend/scanner_service.py",

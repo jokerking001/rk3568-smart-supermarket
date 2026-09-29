@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智慧超市促销大屏</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+/* B端暗黑数据看板主题 */
+body{font-family:'Inter','PingFang SC','Microsoft YaHei',sans-serif;background:#0B1437;color:#FFFFFF;overflow:hidden;width:100vw;height:100vh;cursor:pointer}
+
+.slide{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;transition:opacity 0.8s;padding:60px;padding-bottom:120px;}
+.slide.active{opacity:1}
+
+/* 标题防遮挡设计：限制最大宽度并靠左 */
+.slide-title{
+  font-size:56px; font-weight:900; margin-bottom:40px; 
+  width:100%; max-width:1400px; text-align:left;
+  padding-right: 450px; /* 强制给右上角的时钟留出绝对安全空间 */
+  background:linear-gradient(90deg, #7551FF, #39B8FF);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+}
+
+/* 热销卡片：深色微透视质感 */
+.rec-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:30px;width:100%;max-width:1400px}
+.rec-card{background:#111C44;border-radius:24px;padding:50px 30px;text-align:center;box-shadow:0 18px 40px rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.05);position:relative}
+.rec-card .icon{font-size:80px;margin-bottom:20px;filter:drop-shadow(0 10px 10px rgba(0,0,0,0.3))}
+.rec-card .name{font-size:36px;font-weight:800;margin-bottom:12px;color:#FFFFFF}
+.rec-card .price{font-size:50px;font-weight:900;color:#00E396}
+.rec-card .tag{position:absolute;top:20px;right:20px;background:rgba(117,81,255,0.2);color:#7551FF;padding:6px 16px;border-radius:20px;font-size:18px;font-weight:700}
+
+/* 临期列表：醒目的警告配色 */
+.expiry-list{width:100%;max-width:1400px;display:flex;flex-direction:column;gap:16px}
+.expiry-item{display:flex;align-items:center;justify-content:space-between;background:#111C44;border-radius:20px;padding:24px 40px;border-left:8px solid #FF5B5B;box-shadow:0 18px 40px rgba(0,0,0,0.2)}
+.expiry-item .left{display:flex;align-items:center;gap:24px}
+.expiry-item .icon{font-size:56px}
+.expiry-item .name{font-size:36px;font-weight:800;color:#FFFFFF}
+.expiry-item .days{font-size:24px;color:#FF9F43;font-weight:700;background:rgba(255,159,67,0.1);padding:6px 16px;border-radius:12px}
+.expiry-item .price-row{text-align:right}
+.expiry-item .old-price{font-size:24px;color:#A3AED0;text-decoration:line-through;margin-bottom:4px}
+.expiry-item .new-price{font-size:48px;font-weight:900;color:#FF5B5B}
+.expiry-item .discount{display:inline-block;background:#FF5B5B;color:white;padding:6px 16px;border-radius:12px;font-size:20px;font-weight:800;margin-left:16px;vertical-align:middle}
+
+/* 数据统计区 */
+.stats-row{display:flex;gap:30px;width:100%;max-width:1400px}
+.stat-box{flex:1;text-align:center;padding:50px;background:#111C44;border-radius:24px;box-shadow:0 18px 40px rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.05)}
+.stat-box .num{font-size:80px;font-weight:900;margin-bottom:10px}
+.stat-box .num.green{color:#00E396}
+.stat-box .num.blue{color:#39B8FF}
+.stat-box .num.orange{color:#7551FF}
+.stat-box .lbl{font-size:28px;color:#A3AED0;font-weight:600}
+
+/* 右上角高级悬浮组件 */
+.top-widget {
+  position:fixed; top:30px; right:40px; z-index:999;
+  display:flex; align-items:center; gap:20px;
+  background:rgba(17,28,68,0.85); padding:16px 28px;
+  border-radius:20px; border:1px solid rgba(255,255,255,0.1);
+  box-shadow:0 10px 30px rgba(0,0,0,0.4); backdrop-filter:blur(10px);
+}
+.top-widget .clock-text { font-size:32px; font-weight:800; color:#FFFFFF; letter-spacing:1px; }
+.top-widget .divider { width:2px; height:28px; background:rgba(255,255,255,0.15); }
+.top-widget .env-text { font-size:20px; font-weight:700; min-width:180px; text-align:center; transition:color 0.4s; }
+
+.hint{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);color:#A3AED0;font-size:20px;font-weight:600;animation:fade 2s infinite;z-index:10;background:rgba(17,28,68,0.8);padding:10px 30px;border-radius:20px;backdrop-filter:blur(5px)}
+@keyframes fade{0%,100%{opacity:0.4}50%{opacity:1}}
+</style>
+</head>
+<body>
+
+<div class="top-widget">
+  <div class="clock-text" id="clock">00:00:00</div>
+  <div class="divider"></div>
+  <div class="env-text" id="envDisplay">环境监测中...</div>
+</div>
+
+<div class="slide active" id="slide-recommend">
+  <div class="slide-title">🔥 今日热销推荐</div>
+  <div class="rec-grid" id="hotGrid"></div>
+</div>
+
+<div class="slide" id="slide-expiry">
+  <div class="slide-title">⏰ 临期特价清仓</div>
+  <div class="expiry-list" id="expiryList"></div>
+</div>
+
+<div class="slide" id="slide-stats">
+  <div class="slide-title">📊 今日战报</div>
+  <div class="stats-row" id="statsRow"></div>
+</div>
+
+<div class="hint">👆 点击屏幕进入智能收银与导购终端</div>
+
+<script>
+// 总共只保留3个轮播界面
+var products=[], currentSlide=0, totalSlides=3; 
+var envTemp = "--", envHum = "--";
+
+// 拉取温湿度数据
+async function fetchEnv() {
+  try {
+    let r = await fetch('/api/env');
+    let d = await r.json();
+    envTemp = d.t.toFixed(1);
+    envHum = d.h.toFixed(1);
+  } catch(e) {}
+}
+
+// 刷新右上角小组件（时间 + 轮播天气/温湿度）
+function updateWidget() {
+  var d = new Date();
+  document.getElementById('clock').textContent = 
+    String(d.getHours()).padStart(2,'0') + ':' + 
+    String(d.getMinutes()).padStart(2,'0') + ':' + 
+    String(d.getSeconds()).padStart(2,'0');
+
+  // 每 10 秒切换一次显示内容
+  let sec = d.getSeconds();
+  let el = document.getElementById('envDisplay');
+  if (sec % 10 < 5) {
+    el.innerHTML = '🌡️ ' + envTemp + '℃ &nbsp; 💧 ' + envHum + '%';
+    el.style.color = '#00E396'; 
+  } else {
+    el.innerHTML = '📍 智慧门店 &nbsp; 🌤️ 晴朗'; // 修改这里！安全又高级
+    el.style.color = '#39B8FF'; 
+  }
+}
+
+function nextSlide(){
+  document.querySelectorAll('.slide').forEach(function(s){s.classList.remove('active')});
+  document.querySelectorAll('.slide')[currentSlide].classList.add('active');
+  currentSlide=(currentSlide+1)%totalSlides;
+}
+
+async function loadData(){
+  try{var r=await fetch('/api/products');products=await r.json();}catch(e){}
+  renderHot(); renderExpiry(); renderStats();
+}
+
+function renderHot(){
+  var sorted=products.slice().sort(function(a,b){return (b.today_sold||0)-(a.today_sold||0);}).slice(0,3);
+  var h='';
+  sorted.forEach(function(p){
+    if(p.name && p.qr_code){
+      h+='<div class="rec-card"><div class="tag">已售 '+(p.today_sold||0)+' 件</div><div class="icon">'+p.icon+'</div><div class="name">'+p.name+'</div><div class="price">¥'+p.price.toFixed(2)+'</div></div>';
+    }
+  });
+  if(!h)h='<div style="font-size:36px;color:#A3AED0;text-align:center;width:100%;grid-column:1/-1;">等待商品数据...</div>';
+  document.getElementById('hotGrid').innerHTML=h;
+}
+
+function renderExpiry(){
+  var now=new Date(),list=[];
+  products.forEach(function(p){
+    var parts=(p.mfg_date||'').split('-');
+    if(parts.length<3 || !p.name)return;
+    var mfg=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));
+    var exp=new Date(mfg);exp.setMonth(exp.getMonth()+(p.shelf_life||12));
+    var days=Math.ceil((exp-now)/(86400000));
+    if(days<=60&&days>=-30){
+      var discount=days<=30?0.5:0.7;
+      list.push({name:p.name,icon:p.icon,price:p.price,days:days,discount:discount});
+    }
+  });
+  list.sort(function(a,b){return a.days-b.days;});
+  var h='';
+  list.forEach(function(p){
+    var newPrice=(p.price*p.discount).toFixed(2);
+    h+='<div class="expiry-item"><div class="left"><span class="icon">'+p.icon+'</span><span class="name">'+p.name+'</span><span class="days">'+(p.days>0?'剩'+p.days+'天':'已过期')+'</span></div><div class="price-row"><div class="old-price">¥'+p.price.toFixed(2)+'</div><div class="new-price">¥'+newPrice+'<span class="discount">'+Math.round(p.discount*10)+'折</span></div></div></div>';
+  });
+  if(!h)h='<div style="font-size:36px;color:#00E396;text-align:center;margin-top:40px;width:100%">✅ 暂无临期商品，库存健康</div>';
+  document.getElementById('expiryList').innerHTML=h;
+}
+
+function renderStats(){
+  var total=0,items=0,vCount=0;
+  products.forEach(function(p){
+    if(p.name && p.qr_code){
+      total+=p.price*(p.today_sold||0);
+      items+=(p.today_sold||0);
+      vCount++;
+    }
+  });
+  document.getElementById('statsRow').innerHTML=
+    '<div class="stat-box"><div class="num green">¥'+total.toFixed(0)+'</div><div class="lbl">今日销售额</div></div>'+
+    '<div class="stat-box"><div class="num blue">'+items+'</div><div class="lbl">售出件数</div></div>'+
+    '<div class="stat-box"><div class="num orange">'+vCount+'</div><div class="lbl">商品品类</div></div>';
+}
+
+// 启动定时器与初始化
+setInterval(updateWidget, 1000);
+updateWidget();
+
+fetchEnv();
+setInterval(fetchEnv, 5000);
+
+loadData();
+setInterval(loadData, 30000);
+
+nextSlide();
+setInterval(nextSlide, 8000);
+
+// 点击进入顾客页面
+document.addEventListener('click',function(){window.location.href='/';});
+document.addEventListener('touchstart',function(){window.location.href='/';});
+</script>
+</body>
+</html>

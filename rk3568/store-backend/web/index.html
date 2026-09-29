@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0369a1">
+<link rel="manifest" href="/manifest.webmanifest">
+<title>智慧超市 - 顾客端</title>
+<style>
+/* ==========================================
+   🧊 冰川高亮科技风与全域重置
+   ========================================== */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: linear-gradient(-45deg, #1e40af, #0369a1, #0ea5e9, #0e7490, #1e40af);
+  background-size: 400% 400%; animation: gradientBg 15s ease infinite;
+  min-height: 100vh; padding-bottom: 60px; overflow-x: hidden; color: #fff;
+}
+@keyframes gradientBg { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+
+.circle { position: fixed; border-radius: 50%; filter: blur(70px); z-index: -1; opacity: 0.4; }
+.circle-1 { width: 350px; height: 350px; top: 10%; right: 10%; background: linear-gradient(135deg, #06b6d4, #ffffff); }
+.circle-2 { width: 350px; height: 350px; bottom: 10%; left: 10%; background: linear-gradient(135deg, #38bdf8, #10b981); }
+
+/* ==========================================
+   🧩 全局玻璃拟态容器
+   ========================================== */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+  border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 16px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+}
+
+.header {
+  background: rgba(0, 0, 0, 0.15); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255,255,255,0.15); padding: 16px 20px; text-align: center; position: relative; z-index: 100;
+}
+.header h1 { font-size: 20px; font-weight: 700; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+
+/* ==========================================
+   🌊 tabs 导航
+   ========================================== */
+.tabs {
+  display: flex; background: rgba(0, 0, 0, 0.2); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+  border-bottom: 1px solid rgba(255,255,255,0.1); position: sticky; top: 0; z-index: 99;
+}
+.tab {
+  flex: 1; text-align: center; padding: 14px 0; font-size: 14px; font-weight: 600;
+  color: rgba(255,255,255,0.7); cursor: pointer; transition: 0.3s;
+  border-bottom: 3px solid transparent; text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+.tab.active { color: #fff; border-bottom-color: #fff; text-shadow: 0 0 8px rgba(255,255,255,0.6); }
+
+.page { display: none; }
+.page.active { display: block; animation: fadeIn 0.4s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ==========================================
+   📸 页面 1: 扫码购物
+   ========================================== */
+.scan-area {
+  text-align: center; margin: 15px 20px; padding: 30px 20px;
+  border: 2px dashed rgba(255, 255, 255, 0.7); box-shadow: 0 0 20px rgba(255,255,255,0.1) inset;
+}
+.scan-dot {
+  display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+  background: #fff; margin-right: 6px; box-shadow: 0 0 10px #fff; animation: dot 1s infinite;
+}
+@keyframes dot { 0%,100%{opacity:1; transform:scale(1);} 50%{opacity:.3; transform:scale(0.8);} }
+.scan-result {
+  background: rgba(255, 255, 255, 0.2); border-radius: 12px; padding: 12px; margin: 10px 20px;
+  border-left: 4px solid #fff; border-right: 1px solid rgba(255,255,255,0.15);
+  border-top: 1px solid rgba(255,255,255,0.15); border-bottom: 1px solid rgba(255,255,255,0.15);
+}
+
+.cart-section { margin: 10px 20px; }
+.section-title { font-size: 16px; font-weight: 700; color: #fff; margin: 18px 0 12px; padding-left: 8px; border-left: 4px solid #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+
+.cart-item {
+  background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 14px; padding: 14px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; transition: 0.3s;
+}
+.cart-item:hover { background: rgba(255,255,255,0.15); transform: translateX(2px); }
+.cart-item .icon { font-size: 32px; flex-shrink: 0; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.15)); }
+.cart-item .info { flex: 1; }
+.cart-item .name { font-size: 15px; font-weight: 600; color: #fff; margin-bottom: 4px; }
+.cart-item .price { font-size: 18px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+.cart-item .qty { display: flex; align-items: center; gap: 8px; }
+.cart-item .qty button {
+  width: 28px; height: 28px; border: none; border-radius: 8px; background: rgba(255,255,255,0.2);
+  color: #fff; font-size: 16px; cursor: pointer; transition: 0.2s;
+}
+.cart-item .qty button:hover { background: rgba(255,255,255,0.3); }
+
+.cart-total { margin: 15px 20px; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.15); }
+.cart-total span { font-size: 16px; font-weight: 600; }
+.cart-total .price { font-size: 26px; color: #fff; font-weight: 800; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+.cart-empty { text-align: center; padding: 40px; color: rgba(255,255,255,0.6); font-size: 14px; }
+.btn-clear {
+  font-size: 13px; background: rgba(255, 255, 255, 0.15); color: #fff; border: 1px solid rgba(255,255,255,0.3);
+  padding: 6px 16px; border-radius: 8px; cursor: pointer; float: right; margin-right: 20px; transition: 0.3s;
+}
+.btn-clear:hover { background: rgba(255,255,255,0.25); }
+
+.btn-checkout {
+  width: calc(100% - 40px); margin: 15px 20px; padding: 16px;
+  background: linear-gradient(90deg, #10b981, #059669, #10b981); background-size: 200% auto;
+  border: none; border-radius: 14px; font-size: 18px; font-weight: 800; cursor: pointer; color: white;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); transition: 0.5s; letter-spacing: 2px;
+}
+.btn-checkout:hover { background-position: right center; transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3); }
+
+/* ==========================================
+   ⚖️ 页面 2: 称重计价
+   ========================================== */
+#page-weigh .glass-panel { padding: 25px 20px; text-align: center; margin-bottom: 20px; }
+#weighValue { font-size: 54px; font-weight: 800; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,0.3); margin: 5px 0; }
+.weigh-item-card {
+  background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.2); border-radius: 12px; padding: 14px;
+  text-align: center; cursor: pointer; transition: 0.3s;
+}
+.weigh-item-card.active { border-color: #fff; background: rgba(255,255,255,0.2); box-shadow: 0 0 15px rgba(255,255,255,0.2); }
+
+#weighBtn {
+  width: 100%; margin-top: 15px; padding: 16px; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; transition: 0.3s;
+}
+#weighBtn:not(:disabled) { background: linear-gradient(135deg, #10b981, #0ea5e9); color: white; box-shadow: 0 4px 12px rgba(0,0,0,0.2); cursor: pointer; }
+#weighBtn:disabled { background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.5); cursor: not-allowed; }
+
+/* ==========================================
+   📦 页面 3: 商品浏览
+   ========================================== */
+.product-list { padding: 5px 20px 20px; }
+.product-card {
+  background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 14px; padding: 15px; margin-bottom: 12px; display: flex; align-items: center; gap: 14px; transition: 0.3s; cursor: pointer;
+}
+.product-card:hover { background: rgba(255,255,255,0.12); transform: scale(1.02); }
+.product-img { width: 60px; height: 60px; background: rgba(255,255,255,0.1); border-radius: 12px; font-size: 36px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.product-info { flex: 1; }
+.product-name { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+.product-meta { font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 8px; }
+.product-bottom { display: flex; justify-content: space-between; align-items: center; }
+.product-price { font-size: 18px; font-weight: 800; color: #06b6d4; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+.product-stock {
+  font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 12px; text-align: center;
+  background: rgba(255,255,255,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.3);
+}
+.product-stock.warn { background: rgba(251,146,60,0.3); color: #fff; border-color: rgba(251,146,60,0.4); }
+.product-stock.danger { background: rgba(239,68,68,0.3); color: #fff; border-color: rgba(239,68,68,0.4); }
+
+/* ==========================================
+   🤖 页面 4: AI助手
+   ========================================== */
+.ai-section { padding: 20px; }
+.ai-input {
+  width: 100%; padding: 14px 16px; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 12px; font-size: 15px; color: #fff; outline: none; transition: 0.3s;
+}
+.ai-input:focus { border-color: #fff; background: rgba(255,255,255,0.25); box-shadow: 0 0 12px rgba(255,255,255,0.3); }
+.ai-input::placeholder { color: rgba(255,255,255,0.5); }
+.ai-btn {
+  width: 100%; padding: 14px; background: linear-gradient(135deg, #0ea5e9, #3b82f6); color: white;
+  border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-bottom: 16px; transition: 0.3s; letter-spacing: 1px;
+}
+.ai-btn:active { transform: scale(0.98); }
+.ai-tag-btn {
+  padding: 6px 12px; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 10px; font-size: 12px; cursor: pointer; color: #fff; font-weight: 600; transition: 0.2s;
+}
+.ai-tag-btn:hover { background: rgba(255,255,255,0.3); }
+.ai-result {
+  margin-top: 15px; padding: 16px; background: rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 14px; font-size: 14px; line-height: 1.6; min-height: 60px; border-left: 4px solid #fff; white-space: pre-wrap;
+}
+
+/* ==========================================
+   🧩 弹窗系统 (Modal)
+   ========================================== */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(8px);
+  z-index: 1000; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.2s ease;
+}
+.modal-overlay.hidden { display: none; }
+.modal-card {
+  background: linear-gradient(135deg, #0369a1, #1e40af); border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 20px; width: 92%; max-width: 420px; max-height: 85vh; overflow-y: auto;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+}
+.modal-header { padding: 18px 20px; border-bottom: 1px solid rgba(255,255,255,0.15); display: flex; justify-content: space-between; align-items: center; }
+.modal-header h3 { font-size: 18px; font-weight: 700; color: #fff; }
+.modal-close {
+  width: 32px; height: 32px; border-radius: 50%; border: none; background: rgba(255,255,255,0.15);
+  color: #fff; font-size: 18px; cursor: pointer; transition: 0.2s;
+}
+.modal-close:hover { background: rgba(255,255,255,0.25); }
+.modal-body { padding: 18px 20px; }
+
+.order-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px dashed rgba(255,255,255,0.15); font-size: 14px; color: rgba(255,255,255,0.8); }
+.order-total-row { display: flex; justify-content: space-between; padding: 16px 0; font-size: 18px; font-weight: 700; }
+.order-total-row .price { color: #fff; font-size: 24px; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+
+.pay-methods { display: flex; gap: 12px; margin-top: 10px; }
+.pay-method {
+  flex: 1; padding: 14px 8px; border: 2px solid rgba(255,255,255,0.15); border-radius: 14px;
+  text-align: center; cursor: pointer; font-size: 13px; font-weight: 700; transition: 0.3s; background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.7);
+}
+.pay-method.active { border-color: #fff; background: rgba(255,255,255,0.2); color: #fff; box-shadow: 0 0 12px rgba(255,255,255,0.2); }
+.pay-method .icon { font-size: 32px; display: block; margin-bottom: 6px; }
+
+.qr-area { text-align: center; margin: 18px 0; padding: 20px; background: #fff; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); }
+.qr-area img { width: 180px; height: 180px; }
+
+.btn-row { display: flex; gap: 12px; margin-top: 18px; }
+.btn-pay {
+  flex: 1; padding: 15px; border: none; border-radius: 12px; font-size: 16px; font-weight: 800; cursor: pointer; color: white; transition: 0.3s;
+}
+.btn-pay.primary { background: linear-gradient(135deg, #10b981, #0ea5e9); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+.btn-pay.secondary { background: rgba(255,255,255,0.15); color: #fff; }
+.btn-pay.primary:active { transform: translateY(2px); }
+
+/* 全局吐司提示 */
+.toast {
+  position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+  background: rgba(16,185,129,0.95); backdrop-filter: blur(5px); color: white; padding: 12px 24px;
+  border-radius: 20px; font-weight: 700; z-index: 9999; box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+  animation: toastIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: none;
+}
+.toast.dup { background: rgba(251,146,60,0.95); }
+.toast.err { background: rgba(239,68,68,0.95); }
+@keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(-30px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
+/* 🌟 语音字幕悬浮窗 UI（支持超长文本完美换行折行） */
+.subtitle-overlay {
+  position: fixed; bottom: 85px; left: 50%; transform: translateX(-50%) translateY(150%); width: 90%; max-width: 500px;
+  background: rgba(3, 105, 161, 0.95); backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 20px; padding: 18px 24px; box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+  z-index: 9999; opacity: 0; transition: all 0.5s cubic-bezier(0.2, 1.2, 0.3, 1);
+}
+.subtitle-overlay.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+.sub-row { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 8px; width: 100%; }
+.sub-row:last-child { margin-bottom: 0; }
+.sub-icon { font-size: 20px; line-height: 1.2; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); flex-shrink: 0; }
+.sub-text-q { font-size: 15px; color: #fff; font-weight: 700; line-height: 1.5; flex: 1; word-break: break-word; white-space: pre-wrap; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+.sub-text-a { font-size: 15px; color: #e0f2fe; font-weight: 400; line-height: 1.6; flex: 1; word-break: break-word; white-space: pre-wrap; }
+
+.reg-input {
+  width:100%; padding:14px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2);
+  border-radius:12px; font-size:15px; color:#fff; margin-bottom:10px; text-align:center; font-family:inherit; outline:none; transition:0.3s;
+}
+.reg-input:focus { border-color:#fff; box-shadow:0 0 10px rgba(255,255,255,0.3); }
+</style>
+</head>
+<body>
+
+<div class="circle circle-1"></div>
+<div class="circle circle-2"></div>
+
+<div class="header">
+  <h1>🛒 智慧超市终端</h1>
+  <div style="margin-top:10px; display:flex; justify-content:center; gap:10px; align-items:center">
+    <div id="memberBar" style="display:none; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3); color:#fff; border-radius:10px; padding:6px 14px; font-size:13px; font-weight:700;"></div>
+    <button onclick="showRegForm()" style="background:rgba(255,255,255,0.15); color:#fff; border:1px solid rgba(255,255,255,0.25); border-radius:10px; padding:6px 14px; font-size:13px; font-weight:600; cursor:pointer; transition:0.3s;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">🎫 注册会员</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('scan')">📷 扫码购物</div>
+  <div class="tab" onclick="switchTab('weigh')">⚖️ 智能称重</div>
+  <div class="tab" onclick="switchTab('products')">📦 全部商品</div>
+  <div class="tab" onclick="switchTab('ai')">🤖 AI 导购</div>
+</div>
+
+<div class="page active" id="page-scan">
+  <div class="glass-panel scan-area">
+    <div style="font-size:16px; font-weight:700;"><span class="scan-dot"></span>等待扫描...</div>
+    <div style="font-size:13px; color:rgba(255,255,255,0.6); margin-top:8px;">请将商品条码/二维码对准识别区域</div>
+  </div>
+  <div id="scanResult"></div>
+  
+  <div class="cart-section">
+    <div class="section-title">🛍️ 购物清单</div>
+    <div id="cartList"><div class="glass-panel cart-empty">空空如也，快去扫码添加商品吧</div></div>
+  </div>
+  
+  <div class="glass-panel cart-total" id="cartTotal" style="display:none">
+    <span>合计金额</span>
+    <span class="price" id="totalPrice">¥0.00</span>
+  </div>
+  <button class="btn-clear" onclick="clearCart()">🗑️ 清空清单</button>
+  <button class="btn-checkout" id="btnCheckout" onclick="openCheckout()" style="display:none">💳 结账付款</button>
+</div>
+
+<div class="page" id="page-weigh">
+  <div class="glass-panel" style="margin:15px 20px; padding:25px 20px; text-align:center;">
+    <div style="font-size:14px; color:rgba(255,255,255,0.7); margin-bottom:8px;">当前托盘重量</div>
+    <div id="weighValue">0.0</div>
+    <div style="font-size:14px; color:rgba(255,255,255,0.6)">克 (g)</div>
+    <div id="weighStatus" style="font-size:13px; color:rgba(255,255,255,0.5); margin-top:10px;">等待放置物品...</div>
+  </div>
+  
+  <div style="margin:10px 20px">
+    <div class="section-title">📦 请选择您要称重的商品</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px" id="weighProducts"></div>
+  </div>
+  
+  <div class="glass-panel" style="margin:15px 20px; padding:18px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <span style="color:rgba(255,255,255,0.7);">选中商品</span>
+      <span id="weighItemName" style="font-weight:700; font-size:16px;">未选择</span>
+    </div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <span style="color:rgba(255,255,255,0.7);">标准单价</span>
+      <span id="weighPrice" style="font-weight:700; color:#fff;">¥0.00</span>
+    </div>
+    <div style="display:flex; justify-content:space-between; align-items:center; padding-top:12px; border-top:1px dashed rgba(255,255,255,0.2);">
+      <span style="font-weight:700; font-size:16px;">小计</span>
+      <span id="weighTotal" style="font-size:24px; font-weight:800; color:#fff; text-shadow:0 1px 4px rgba(0,0,0,0.2);">¥0.00</span>
+    </div>
+    <button onclick="weighAddToCart()" id="weighBtn" disabled>请先选择商品并放置物品</button>
+  </div>
+</div>
+
+<div class="page" id="page-products">
+  <div class="product-list">
+    <div class="section-title">📦 超市全品类</div>
+    <div id="productGrid"></div>
+  </div>
+</div>
+
+<div class="page" id="page-ai">
+  <div class="glass-panel ai-section" style="margin:15px 20px;">
+    <div style="font-size:14px; color:rgba(255,255,255,0.7); margin-bottom:16px; text-align:center;">💡 向智能导购提问，如：可乐在哪个区？有折扣吗？</div>
+    
+    <div style="display:flex; gap:10px; align-items:center; margin-bottom:16px;">
+      <input type="text" id="aiQuestion" class="ai-input" placeholder="输入你想了解的内容..." style="flex:1">
+      <button onclick="voiceAskAI()" style="width:50px; height:50px; border-radius:14px; background:linear-gradient(135deg, #10b981, #0ea5e9); color:white; border:none; font-size:22px; cursor:pointer; flex-shrink:0; box-shadow:0 4px 10px rgba(0,0,0,0.15);">🎤</button>
+    </div>
+    <button class="ai-btn" onclick="askAI()">🚀 发送提问</button>
+    
+    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;">
+      <button class="ai-tag-btn" onclick="askAI('今天有什么推荐的商品？')">🔥 今日推荐</button>
+      <button class="ai-tag-btn" onclick="askAI('我预算20元，推荐适合晚上吃的零食')">💰 预算推荐</button>
+      <button class="ai-tag-btn" onclick="askAI('有没有正在促销或临期优惠的商品？')">🏷️ 今日优惠</button>
+      <button class="ai-tag-btn" onclick="askAI('这个商品缺货的话，有什么相似替代品？')">🔁 缺货替代</button>
+    </div>
+    
+    <div class="ai-result" id="aiResult">
+      <span style="color:rgba(255,255,255,0.6); font-style:italic;">AI 回答将在此处生成...</span>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="checkoutModal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>🧾 确认订单信息</h3>
+      <button class="modal-close" onclick="closeCheckout()">✕</button>
+    </div>
+    <div class="modal-body" id="checkoutBody"></div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="payModal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>💳 扫码完成支付</h3>
+      <button class="modal-close" onclick="cancelPay()">✕</button>
+    </div>
+    <div class="modal-body" id="payBody"></div>
+  </div>
+</div>
+
+<div class="subtitle-overlay" id="subtitleBox">
+  <div class="sub-row">
+    <div class="sub-icon">🗣️</div>
+    <div class="sub-text-q" id="subQ">...</div>
+  </div>
+  <div class="sub-row">
+    <div class="sub-icon">🤖</div>
+    <div class="sub-text-a" id="subA">...</div>
+  </div>
+</div>
+
+<script>
+// ===============================================================
+// 💡 100% 完整复刻原版数据交互模型，确保功能绝对平移
+// ===============================================================
+var allProducts = [];
+var productMap = {};
+var cart = [];
+var scanTimer = null;
+var lastSeenCode = '';
+var lastAddedCode = '';
+var lastAddedTime = 0;
+var MODULE_A_IP = "192.168.43.13";
+var USE_PI_FALLBACK = false;
+var currentOrderId = -1;
+var currentOrderTotal = 0;
+var currentPayMethod = 'cash';
+var payPollTimer = null;
+var payPollCount = 0;
+var qrRetry = 0;
+var currentMember = null; 
+var memberRFIDTimer = null;
+var customerSessionId=localStorage.getItem('mimi_customer_session');
+if(!customerSessionId){customerSessionId='cust_'+Math.random().toString(36).slice(2,18);localStorage.setItem('mimi_customer_session',customerSessionId);}
+function customerMetric(event,q){var b='event='+encodeURIComponent(event)+(q?'&q='+encodeURIComponent(q):'');fetch('/api/customer/analytics-event',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:b}).catch(function(){});}
+
+function startMemberRFID(){
+  memberRFIDTimer = setInterval(async function(){
+    try{
+      var r = await fetch('/api/member/rfid-poll');
+      var d = await r.json();
+      if(d.card && d.memberId && !currentMember){
+        currentMember = {id: d.memberId, name: d.name, points: 0};
+        fetch('/api/member/lookup?code=MEM:'+d.memberId).then(function(r2){return r2.json()}).then(function(md){
+          if(md.ok) currentMember = md;
+          showMemberWelcome();
+        });
+      }
+    }catch(e){}
+  }, 800);
+}
+startMemberRFID();
+
+function findProduct(code) {
+  if (productMap[code]) return productMap[code];
+  return allProducts.find(function(x){
+    return x.qr_code === code || x.name === code || x.name.indexOf(code) >= 0;
+  });
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active')});
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
+  ['scan','weigh','products','ai'].forEach(function(t,i){
+    if(t===tab){
+      document.querySelectorAll('.tab')[i].classList.add('active');
+      document.getElementById('page-'+t).classList.add('active');
+    }
+  });
+  if(tab==='scan') startScan(); else stopScan();
+  if(tab==='weigh') startWeighPoll(); else stopWeighPoll();
+  if(tab==='products') loadProducts();
+}
+
+function startScan(){stopScan();doScan();scanTimer=setInterval(doScan,200);}
+function stopScan(){if(scanTimer){clearInterval(scanTimer);scanTimer=null;}}
+
+async function doScan(){
+  if(window._skipScan){return;}
+  try{
+    var r=await fetch('http://' + MODULE_A_IP + '/qr-scan');
+    var d=await r.json();
+    var code='';
+    if(d.ok && d.text) code=(d.text||'').trim();
+    if(!code){if(lastSeenCode)lastSeenCode='';return;}
+    var now=Date.now();
+    if(code===lastSeenCode)return;
+    lastSeenCode=code;
+    if(code===lastAddedCode&&(now-lastAddedTime)<5000)return;
+    if(code.startsWith('MEM:')||code.startsWith('mem:')){
+      try{
+        var mr=await fetch('/api/member/lookup?code='+encodeURIComponent(code));
+        var md=await mr.json();
+        if(md.ok){currentMember=md;showMemberWelcome();}
+        else showToast(md.msg||'未找到会员','err');
+      }catch(e){}
+      return;
+    }
+    if(allProducts.length===0)await loadProducts();
+    var p=findProduct(code);
+    if(!p){showToast('未知码: ['+code+']','err');return;}
+    lastAddedCode=code;lastAddedTime=now;
+    addToCart(code);
+    showScanResult(code);
+  }catch(e){}
+}
+
+function showMemberWelcome(){
+  var el=document.getElementById('memberBar');
+  el.innerHTML='<span>👤 '+currentMember.name+' | 积分: '+currentMember.points+'</span> <button onclick="logoutMember()" style="margin-left:8px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:6px;padding:2px 8px;font-size:11px;color:#fff;cursor:pointer">退出</button>';
+  el.style.display='block';
+  showToast('🎉 欢迎 '+currentMember.name+'！积分: '+currentMember.points,'ok');
+}
+function logoutMember(){currentMember=null;document.getElementById('memberBar').style.display='none';}
+
+function showRegForm(){
+  var h='<div style="text-align:center;">';
+  h+='<h3 style="margin-bottom:16px; color:#fff;">🎫 新会员注册</h3>';
+  h+='<input id="regName" class="reg-input" placeholder="请输入您的姓名">';
+  h+='<input id="regPhone" class="reg-input" type="tel" placeholder="手机号 (仅限注册一次)">';
+  h+='<div style="display:flex;gap:12px; margin-top:10px;">';
+  h+='<button onclick="doRegister()" class="btn-pay primary" style="flex:1">马上注册</button>';
+  h+='<button onclick="closeModal()" class="btn-pay secondary" style="flex:1">暂不注册</button>';
+  h+='</div></div>';
+  document.getElementById('checkoutBody').innerHTML=h;
+  document.getElementById('checkoutModal').classList.remove('hidden');
+  setTimeout(function(){var el=document.getElementById('regName');if(el)el.focus();},300);
+}
+
+async function doRegister(){
+  var name=document.getElementById('regName').value.trim();
+  var phone=document.getElementById('regPhone').value.trim();
+  if(!name){alert('请输入姓名');return;}
+  var r=await fetch('/api/member/register',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'name='+encodeURIComponent(name)+'&phone='+encodeURIComponent(phone)});
+  var d=await r.json();
+  if(d.ok){
+    var h='<div style="text-align:center;">';
+    h+='<div style="font-size:48px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">🎫</div>';
+    h+='<h3 style="color:#fff; margin:10px 0;">'+name+'，注册成功</h3>';
+    h+='<p style="color:rgba(255,255,255,0.8); margin:8px 0">您的会员专属码：<br><b style="font-size:22px;color:#fff;">'+d.qr+'</b></p>';
+    h+='<div style="background:#fff; padding:10px; border-radius:16px; display:inline-block; margin:8px 0;"><iframe src="/qr-svg?text='+encodeURIComponent(d.qr)+'" style="width:180px;height:180px;border:none;display:block"></iframe></div>';
+    h+='<p style="font-size:12px;color:rgba(255,255,255,0.7); margin-bottom:15px;">截屏保存上方二维码<br>结账前扫描即可享受会员权益</p>';
+    h+='<div style="display:flex; gap:10px; margin-bottom:10px;">';
+    h+='<button onclick="bindRFIDNow(\''+d.id+'\')" class="btn-pay" style="flex:1; background:rgba(255,255,255,0.2); border:1px solid rgba(255,255,255,0.3)">💳 绑实体卡</button>';
+    h+='<button onclick="closeModal()" class="btn-pay primary" style="flex:1">完 成</button></div>';
+    h+='<div id="bindHint" style="font-size:13px;color:#fff"></div></div>';
+    document.getElementById('checkoutBody').innerHTML=h;
+  }else{alert('注册失败: '+(d.msg||''));}
+}
+
+function showModal(h){var el=document.getElementById('checkoutBody');el.innerHTML=h;document.getElementById('checkoutModal').classList.remove('hidden');}
+function closeModal(){document.getElementById('checkoutModal').classList.add('hidden');if(window._bindTimer)clearInterval(window._bindTimer);}
+var _bindTimer=null;
+
+function bindRFIDNow(mid){
+  var hint=document.getElementById('bindHint');
+  hint.textContent='⏳ 请将实体卡贴近读卡器...';
+  _bindTimer=setInterval(async function(){
+    var r=await fetch('/api/rfid-poll');var d=await r.json();
+    if(d.card&&d.uid){
+      clearInterval(_bindTimer);
+      var resp=await fetch('/api/member/bind-rfid',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'uid='+d.uid+'&id='+mid});
+      var rd=await resp.json();
+      hint.textContent=rd.ok?'✅ 绑定成功！刷卡或扫码均可识别':'❌ 绑定失败，请重试';
+    }
+  },500);
+}
+
+function showScanResult(code){
+  var p=findProduct(code);
+  var el=document.getElementById('scanResult');
+  if(p){
+    var dp=getDiscountedPrice(p),disc=getExpiryDiscount(p);
+    var badge=disc<1?' <span style="background:#ef4444;color:white;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;">'+(disc===0.5?'5折':'7折')+'</span>':'';
+    el.innerHTML='<div class="scan-result" style="color:#fff"><b style="font-size:16px;">'+p.icon+' '+p.name+'</b>'+badge+'<br><span style="color:#fff;font-size:20px;font-weight:800;">¥'+dp.toFixed(2)+'</span>'+(disc<1?' <span style="text-decoration:line-through;color:rgba(255,255,255,0.5);font-size:13px">¥'+p.price.toFixed(2)+'</span>':'')+'</div>';
+    setTimeout(function(){el.innerHTML='';},3000);
+  }
+}
+
+function getExpiryDiscount(p){
+  if(!p||!p.mfg_date||!p.shelf_life||p.mfg_date==='-')return 1.0;
+  var parts=p.mfg_date.split('-');if(parts.length<3)return 1.0;
+  var mfg=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));
+  var exp=new Date(mfg);exp.setMonth(exp.getMonth()+p.shelf_life);
+  var days=Math.ceil((exp-new Date())/(86400000));
+  if(days<=30)return 0.5; 
+  if(days<=60)return 0.7; 
+  return 1.0; 
+}
+function getDiscountedPrice(p){return p.price*getExpiryDiscount(p);}
+
+function addToCart(code){
+  var p=findProduct(code);
+  var existing=cart.find(function(x){return x.code===code;});
+  if(!p || p.stock <= (existing ? existing.qty : 0)) return;
+  var f=existing;
+  if(f)f.qty++;else cart.push({code:code,qty:1});
+  customerMetric('cart');
+  renderCart();refreshProductStock();
+}
+function cartQty(code,d){
+  var f=cart.find(function(x){return x.code===code;});
+  if(!f)return;
+  f.qty+=d;
+  if(f.qty<=0)cart=cart.filter(function(x){return x.code!==code;});
+  renderCart();refreshProductStock();
+}
+function clearCart(){cart=[];lastAddedCode='';lastSeenCode='';renderCart();refreshProductStock();}
+
+function renderCart(){
+  var el=document.getElementById('cartList');
+  var t=0;
+  if(cart.length===0){
+    el.innerHTML='<div class="glass-panel cart-empty">空空如也，快去扫码添加商品吧</div>';
+  }else{
+    var h='';
+    cart.forEach(function(i){
+      var p=findProduct(i.code);
+      h+='<div class="cart-item">';
+      h+='<div class="icon">'+(p?p.icon:'📦')+'</div>';
+      var dp=getDiscountedPrice(p),disc=getExpiryDiscount(p);
+      var badge=disc<1?' <span style="background:#ef4444;color:white;padding:2px 6px;border-radius:8px;font-size:10px;font-weight:700;">'+(disc===0.5?'5折':'7折')+'临期</span>':'';
+      h+='<div class="info"><div class="name">'+(p?p.name:i.code)+badge+'</div>';
+      h+='<div class="price">¥'+dp.toFixed(2)+''+(disc<1?' <s style="color:rgba(255,255,255,0.5);font-size:12px;font-weight:400;">¥'+p.price.toFixed(2)+'</s>':'')+'</div></div>';
+      h+='<div class="qty"><button onclick="cartQty(\''+i.code+'\',-1)">−</button>';
+      h+='<span style="font-size:16px;font-weight:700;color:#fff;min-width:24px;text-align:center">'+i.qty+'</span>';
+      h+='<button onclick="cartQty(\''+i.code+'\',1)">+</button></div></div>';
+      t+=i.qty*dp;
+    });
+    el.innerHTML=h;
+  }
+  document.getElementById('cartTotal').style.display=cart.length?'flex':'none';
+  document.getElementById('totalPrice').textContent='¥'+t.toFixed(2);
+  document.getElementById('btnCheckout').style.display=cart.length?'block':'none';
+}
+
+async function loadProducts(){
+  try{
+    var r=await fetch('/api/products');
+    var list=await r.json();
+    allProducts=list;
+    list.forEach(function(p){productMap[p.qr_code]=p;});
+    renderProductList();
+  }catch(e){}
+}
+
+function renderProductList(){
+  var h='';
+  allProducts.forEach(function(p){
+    if(!p.name||!p.qr_code)return;
+    var sc=p.stock<5?' product-stock danger':p.stock<15?' product-stock warn':' product-stock';
+    h+='<div class="product-card" onclick="addToCart(\''+p.qr_code+'\')">';
+    h+='<div class="product-img">'+p.icon+'</div>';
+    h+='<div class="product-info">';
+    h+='<div class="product-name">'+p.name+'</div>';
+    h+='<div class="product-meta">生产: '+p.mfg_date+' | 保质: '+p.shelf_life+'个月</div>';
+    h+='<div class="product-bottom">';
+    h+='<span class="product-price">¥'+p.price.toFixed(2)+'</span>';
+    h+='<span class="'+sc+'" id="ps-'+p.qr_code+'">库存: '+p.stock+'件</span>';
+    h+='</div></div></div>';
+  });
+  var grid=document.getElementById('productGrid');
+  if(grid)grid.innerHTML=h;
+  refreshProductStock();
+}
+
+function refreshProductStock(){
+  allProducts.forEach(function(p){
+    var el=document.getElementById('ps-'+p.qr_code);
+    if(!el)return;
+    var inCart=0;
+    var ci=cart.find(function(x){return x.code===p.qr_code;});
+    if(ci)inCart=ci.qty;
+    var avail=p.stock-inCart;
+    if(avail<0)avail=0;
+    el.textContent='库存: '+avail+'件';
+    var sc='product-stock';
+    if(avail<=0||avail<5)sc='product-stock danger';
+    else if(avail<15)sc='product-stock warn';
+    el.className=sc;
+  });
+}
+
+function askAI(q){
+  q=q||document.getElementById("aiQuestion").value.trim();
+  if(q===""){alert("请先输入内容");return;}
+  document.getElementById("aiQuestion").value='';
+  var rd=document.getElementById("aiResult");
+  customerMetric('question',q);
+  rd.innerHTML="<span style='color:rgba(255,255,255,0.7);font-style:italic;'>🤖 大脑正在高速运转中...</span>";
+  var done=false;
+  function fallback(){if(done)return;done=true;fetch("/api/customer/chat?q="+encodeURIComponent(q)).then(function(r){return r.json();}).then(function(r){rd.innerText=r.answer||r.msg||'暂时无法回答';}).catch(function(){rd.innerHTML="<span style='color:#ef4444'>提问遇到了一点小麻烦，请重试</span>";});}
+  try{
+    var ws=new WebSocket('ws://192.168.43.100:18789/');
+    var timer=setTimeout(function(){try{ws.close();}catch(e){}fallback();},30000);
+    ws.onopen=function(){ws.send(JSON.stringify({type:'message',chat_id:customerSessionId,content:q}));};
+    ws.onmessage=function(ev){
+      try{var m=JSON.parse(ev.data);var text=m.content||'';if(text.indexOf('working')>=0){rd.innerText='MimiClaw 正在查询门店数据...';return;}done=true;clearTimeout(timer);rd.innerText=text||'暂时无法回答';if(text)customerMetric('resolved');ws.close();}catch(e){fallback();}
+    };
+    ws.onerror=fallback;
+  }catch(e){fallback();}
+}
+function voiceAskAI(){alert('请按下终端机上的物理语音按钮进行提问');}
+
+function openCheckout(){
+  if(cart.length===0)return;
+  currentOrderId=-1;
+  lastQueuedReceipt=-1;
+  var items=[],total=0;
+  cart.forEach(function(i){
+    var p=findProduct(i.code);
+    var dp=getDiscountedPrice(p);
+    if(p){items.push(p.name+' <span style="color:rgba(255,255,255,0.6)">x'+i.qty+'</span>  <b style="color:#fff">¥'+(dp*i.qty).toFixed(2)+'</b>');total+=dp*i.qty;}
+  });
+  
+  var memberDisc=0;
+  if(currentMember){memberDisc=total*0.05;total-=memberDisc;}
+  currentOrderTotal=total;
+  
+  var h='';
+  if(currentMember)h+='<div style="font-size:14px;color:#fff;font-weight:700;margin-bottom:10px;padding:8px;background:rgba(255,255,255,0.2);border-radius:8px;">👤 尊贵的 '+currentMember.name+' 享 95 折特权 | 当前积分: '+currentMember.points+'</div>';
+  
+  h+='<div style="background:rgba(0,0,0,0.1); border-radius:12px; padding:12px; margin-bottom:15px; max-height:180px; overflow-y:auto;">';
+  items.forEach(function(l){h+='<div class="order-item">'+l+'</div>';});
+  h+='</div>';
+  
+  h+='<div class="order-total-row"><span>支付合计</span><span class="price">¥'+total.toFixed(2)+(memberDisc>0?'<br><span style="font-size:12px;color:#fff;display:block;text-align:right;">(已优惠¥'+memberDisc.toFixed(2)+')</span>':'')+'</span></div>';
+  h+='<div style="font-size:13px;color:rgba(255,255,255,0.6);margin-bottom:8px">选择结账方式</div>';
+  h+='<div class="pay-methods">';
+  h+='<div class="pay-method active" onclick="selectPay(this,&apos;cash&apos;)"><span class="icon">💵</span>现金支付</div>';
+  h+='<div class="pay-method" onclick="selectPay(this,&apos;wx&apos;)"><span class="icon">🟢</span>微信扫码</div>';
+  h+='<div class="pay-method" onclick="selectPay(this,&apos;alipay&apos;)"><span class="icon">🔵</span>支付宝扫码</div>';
+  h+='</div>';
+  h+='<div class="btn-row"><button class="btn-pay secondary" onclick="closeCheckout()">返回修改</button>';
+  h+='<button class="btn-pay primary" onclick="doCheckout()">确 认 付 款</button></div>';
+  
+  document.getElementById('checkoutBody').innerHTML=h;
+  document.getElementById('checkoutModal').classList.remove('hidden');
+}
+
+function closeCheckout(){
+  document.getElementById('checkoutModal').classList.add('hidden');
+  currentPayMethod='cash';currentOrderId=-1;
+}
+
+function selectPay(el,method){
+  currentPayMethod=method;
+  document.querySelectorAll('#checkoutBody .pay-method').forEach(function(m){m.classList.remove('active')});
+  el.classList.add('active');
+}
+
+async function doCheckout(){
+  if(cart.length===0)return;
+  var itemsStr='',total=0;
+  cart.forEach(function(i,idx){
+    var p=findProduct(i.code);
+    var dp=getDiscountedPrice(p);
+    if(p){if(idx>0)itemsStr+=', ';itemsStr+=p.name+'x'+i.qty;total+=dp*i.qty;}
+  });
+  if(currentMember)total*=0.95; 
+  try{
+    var r=await fetch('/api/checkout?items='+encodeURIComponent(itemsStr)+'&total='+total.toFixed(2)+'&method='+currentPayMethod);
+    var d=await r.json();
+    if(!d.ok){showToast('订单通道拥挤，请重试','err');return;}
+    currentOrderId=d.orderId;currentOrderTotal=total;
+  }catch(e){showToast('网络有点小情绪，请重试','err');return;}
+  if(currentPayMethod==='cash'){doCashPayment();}else{showPayModal(currentPayMethod);}
+}
+
+async function doCashPayment(){
+  try{
+    var itemsParam=cart.map(function(i){
+      var p=findProduct(i.code);return (p?p.qr_code:i.code)+':'+i.qty;
+    }).join(',');
+    var r=await fetch('/api/pay-confirm?orderId='+currentOrderId+'&items='+encodeURIComponent(itemsParam));
+    var d=await r.json();
+    if(d.ok)showPaySuccess();else showToast('收银台确认失败','err');
+  }catch(e){showToast('网络断开了','err');}
+}
+
+function showPayModal(method){
+  var payUrl=window.location.protocol+'//'+window.location.host+'/pay?order='+currentOrderId+'&t='+currentOrderTotal.toFixed(2);
+  var h='<div style="font-size:13px; color:rgba(255,255,255,0.6); margin-bottom:10px;">流水单号 #'+(currentOrderId+1)+'</div>';
+  h+='<div class="order-total-row" style="padding-top:0;"><span>应付总额</span><span class="price">¥'+currentOrderTotal.toFixed(2)+'</span></div>';
+  h+='<div class="qr-area">';
+  h+='<iframe src="/qr-svg?text='+encodeURIComponent(payUrl)+'" style="width:180px;height:180px;border:none"></iframe>';
+  h+='</div>';
+  h+='<div style="font-size:14px; color:rgba(255,255,255,0.8); text-align:center; margin-bottom:15px;">📱 请打开手机'+(method==='wx'?'微信':'支付宝')+'扫码支付</div>';
+  h+='<div style="margin-top:10px;text-align:center;font-weight:700;color:#fff;" id="pollStatus">⏳ 云端校验支付状态中...</div>';
+  h+='<div class="btn-row">';
+  h+='<button class="btn-pay secondary" onclick="cancelPay()">取消支付</button>';
+  h+='<button style="flex:1;background:rgba(255,255,255,0.1);color:#fff;font-size:13px;border:1px solid rgba(255,255,255,0.2);border-radius:12px;cursor:pointer" onclick="manualConfirm()">遇到问题？强制放行</button>';
+  h+='</div>';
+  document.getElementById('payBody').innerHTML=h;
+  document.getElementById('payModal').classList.remove('hidden');
+  startPayPolling();
+}
+
+function startPayPolling(){
+  payPollCount=0;qrRetry=0;
+  if(payPollTimer)clearInterval(payPollTimer);
+  payPollTimer=setInterval(async function(){
+    payPollCount++;
+    try{
+      var r=await fetch('/api/pay-status?order='+currentOrderId);
+      var d=await r.json();
+      var el=document.getElementById('pollStatus');
+      if(el){
+        if(d.confirmed){
+          el.innerHTML='✅ 支付成功！正在生成凭证...'; el.style.color='#fff';
+          clearInterval(payPollTimer);confirmPayAndFinish();
+        }else if(payPollCount>60){
+          el.innerHTML='⏰ 支付超时，请重新发起'; el.style.color='#ef4444'; clearInterval(payPollTimer);
+        }else{
+          var dots='';for(var i=0;i<(payPollCount%4);i++)dots+='.';
+          el.innerHTML='<span style="color:#06b6d4">⏳ 正在等待手机端付款'+dots+'</span>';
+        }
+      }
+    }catch(e){}
+  },2000);
+}
+
+async function confirmPayAndFinish(){
+  try{
+    var itemsParam=cart.map(function(i){
+      var p=findProduct(i.code);return (p?p.qr_code:i.code)+':'+i.qty;
+    }).join(',');
+    var r=await fetch('/api/pay-confirm?orderId='+currentOrderId+'&items='+encodeURIComponent(itemsParam));
+    var d=await r.json();
+    if(d.ok){customerMetric('order');document.getElementById('payModal').classList.add('hidden');closeCheckout();showPaySuccess();}
+    else showToast('系统结算异常','err');
+  }catch(e){showToast('网络断开了','err');}
+}
+
+function cancelPay(){if(payPollTimer)clearInterval(payPollTimer);document.getElementById('payModal').classList.add('hidden');}
+function manualConfirm(){if(payPollTimer)clearInterval(payPollTimer);confirmPayAndFinish();}
+
+function showPaySuccess(){
+  queueReceiptPrint();
+  var methodNames={cash:'💵 现金支付',wx:'🟢 微信支付',alipay:'🔵 支付宝'};
+  var now=new Date();
+  var timeStr=now.getFullYear()+'-'+(now.getMonth()+1).toString().padStart(2,'0')+'-'+now.getDate().toString().padStart(2,'0')+' '+now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0')+':'+now.getSeconds().toString().padStart(2,'0');
+  
+  var h='<div style="text-align:center; padding:20px 0;">';
+  h+='<div style="width:70px; height:70px; border-radius:50%; background:#fff; color:#0ea5e9; font-size:40px; display:flex; align-items:center; justify-content:center; margin:0 auto 16px; box-shadow:0 4px 15px rgba(0,0,0,0.15); animation:popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);">✓</div>';
+  h+='<div style="font-size:24px; font-weight:800; margin-bottom:6px; color:#fff;">支付成功</div>';
+  h+='<div style="font-size:13px; color:rgba(255,255,255,0.6); margin-bottom:15px;">交易单号 #'+(currentOrderId+1)+' | '+timeStr+'</div>';
+  
+  h+='<div style="background:rgba(0,0,0,0.1); border-radius:14px; padding:15px; margin-bottom:15px; text-align:left;">';
+  h+='<table style="width:100%; font-size:14px; border-collapse:collapse; color:rgba(255,255,255,0.9);">';
+  h+='<tr style="border-bottom:1px solid rgba(255,255,255,0.15);"><th style="text-align:left; padding-bottom:8px; font-weight:400; color:rgba(255,255,255,0.6);">商品明细</th><th style="text-align:right; padding-bottom:8px; font-weight:400; color:rgba(255,255,255,0.6);">数量</th><th style="text-align:right; padding-bottom:8px; font-weight:400; color:rgba(255,255,255,0.6);">实付</th></tr>';
+  cart.forEach(function(i){
+    var p=findProduct(i.code);var dp=getDiscountedPrice(p);
+    h+='<tr><td style="padding:8px 0; font-weight:600; color:#fff;">'+(p?p.icon+' '+p.name:i.code)+'</td><td style="text-align:right; padding:8px 0;">x'+i.qty+'</td><td style="text-align:right; padding:8px 0; font-weight:700;">¥'+dp.toFixed(2)+'</td></tr>';
+  });
+  h+='</table></div>';
+  
+  h+='<div style="display:flex; justify-content:space-between; font-size:15px; margin-bottom:8px; color:rgba(255,255,255,0.8);"><span>支付通道</span><span style="color:#fff; font-weight:600;">'+ (methodNames[currentPayMethod]||'💵 现金支付') +'</span></div>';
+  h+='<div style="display:flex; justify-content:space-between; align-items:center; font-size:20px; font-weight:700; margin-bottom:15px; border-top:1px dashed rgba(255,255,255,0.2); padding-top:12px;"><span>实付金额</span><span style="color:#fff; font-size:26px; text-shadow:0 2px 4px rgba(0,0,0,0.2);">¥'+currentOrderTotal.toFixed(2)+'</span></div>';
+  
+  if(currentMember) {
+    h+='<div style="background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); border-radius:10px; padding:10px; font-size:13px; color:#fff; margin-bottom:15px;">';
+    h+='👤 会员 '+currentMember.name+' 本次积 <b>'+Math.floor(currentOrderTotal)+'</b> 分 <br><span style="color:rgba(255,255,255,0.6); font-size:12px;">可用总积分: <b style="color:#fff;">'+(currentMember.points+Math.floor(currentOrderTotal))+'</b></span></div>';
+  }
+  
+  h+='<div class="btn-row"><button class="btn-pay primary" onclick="finishCheckout()" style="background:#fff; color:#1e40af;">完 成 并 返 回</button></div>';
+  h+='</div>';
+  
+  document.getElementById('checkoutBody').innerHTML=h;
+  document.getElementById('checkoutModal').classList.remove('hidden');
+}
+
+var lastQueuedReceipt=-1;
+function canvasToPrinterJob(canvas,kind){
+  var ctx=canvas.getContext('2d');
+  var pixels=ctx.getImageData(0,0,canvas.width,canvas.height).data;
+  var rowBytes=canvas.width>>3;
+  var packed=new Uint8Array(rowBytes*canvas.height);
+  for(var y=0;y<canvas.height;y++)for(var x=0;x<canvas.width;x++){
+    var p=(y*canvas.width+x)*4;
+    var light=pixels[p]*0.299+pixels[p+1]*0.587+pixels[p+2]*0.114;
+    if(pixels[p+3]>64&&light<150)packed[y*rowBytes+(x>>3)]|=0x80>>(x&7);
+  }
+  return fetch('/api/printer/submit?width='+canvas.width+'&height='+canvas.height+'&kind='+encodeURIComponent(kind),{
+    method:'POST',headers:{'Content-Type':'application/octet-stream'},body:packed
+  }).then(function(r){return r.json()});
+}
+
+function drawPrintDocument(title,lines,maxHeight){
+  // 384-dot head with a centered 320-dot (about 40 mm) receipt area.
+  var width=384,left=32,right=352,lineHeight=30;
+  var measure=document.createElement('canvas').getContext('2d');
+  measure.font='23px "Microsoft YaHei","PingFang SC",sans-serif';
+  var wrapped=[];
+  lines.forEach(function(line){
+    if(line===''){wrapped.push('');return;}
+    var current='';
+    Array.from(line).forEach(function(ch){
+      if(measure.measureText(current+ch).width>right-left&&current){wrapped.push(current);current=ch;}
+      else current+=ch;
+    });
+    wrapped.push(current);
+  });
+  var height=Math.min(maxHeight||480,480);
+  var canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
+  var ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,width,height);ctx.fillStyle='#000';
+  ctx.textBaseline='top';ctx.textAlign='center';ctx.font='bold 32px "Microsoft YaHei","PingFang SC",sans-serif';ctx.fillText(title,width/2,10);
+  ctx.fillRect(left,52,right-left,2);ctx.textAlign='left';ctx.font='23px "Microsoft YaHei","PingFang SC",sans-serif';
+  var y=64;wrapped.forEach(function(line){if(y+lineHeight<=height-6){ctx.fillText(line,left,y);y+=lineHeight;}});
+  return canvas;
+}
+
+function queueReceiptPrint(){
+  if(currentOrderId<0||lastQueuedReceipt===currentOrderId)return;
+  lastQueuedReceipt=currentOrderId;
+  var lines=[];
+  lines.push('订单号：#'+(currentOrderId+1));
+  lines.push('时间：'+new Date().toLocaleString('zh-CN',{hour12:false}));
+  lines.push('------------------------');
+  cart.forEach(function(item){var p=findProduct(item.code);if(p)lines.push(p.name+'  x'+item.qty+'  ¥'+(getDiscountedPrice(p)*item.qty).toFixed(2));});
+  lines.push('------------------------');
+  lines.push('支付方式：'+({cash:'现金',wx:'微信',alipay:'支付宝'}[currentPayMethod]||currentPayMethod));
+  lines.push('实付金额：¥'+currentOrderTotal.toFixed(2));
+  if(currentMember)lines.push('会员：'+currentMember.name+'  本次积分：'+Math.floor(currentOrderTotal));
+  lines.push('');lines.push('谢谢惠顾，欢迎再次光临');
+  canvasToPrinterJob(drawPrintDocument('智慧超市购物小票',lines,480),'receipt').then(function(d){
+    if(!d.ok){lastQueuedReceipt=-1;showToast('小票打印队列繁忙','err');}
+  }).catch(function(){lastQueuedReceipt=-1;showToast('小票未能加入打印队列','err');});
+}
+
+async function finishCheckout(){
+  if(currentMember){
+    var pts=Math.floor(currentOrderTotal);
+    try{
+      var r=await fetch('/api/member/add-points',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'id='+currentMember.id+'&pts='+pts+'&spent='+currentOrderTotal.toFixed(2)});
+      var d=await r.json();
+      if(d.ok)currentMember.points=d.points;
+    }catch(e){}
+  }
+  closeCheckout();clearCart();
+  if(currentMember){currentMember=null;document.getElementById('memberBar').style.display='none';}
+  setTimeout(function(){loadProducts();},500);
+}
+
+function showToast(msg,type){
+  var t=document.createElement('div');
+  t.className='toast'+(type?' '+type:'');t.textContent=msg;
+  document.body.appendChild(t);
+  setTimeout(function(){t.style.opacity='0';t.style.transform='translateX(-50%) translateY(-20px)';t.style.transition='all 0.3s ease';setTimeout(function(){t.remove();},300);},2000);
+}
+
+setInterval(async function(){try{var r=await fetch('/api/cam-status');var d=await r.json();window._skipScan=d.busy;}catch(e){window._skipScan=false;}},2000);
+loadProducts().then(function(){startScan();});
+
+// ===== 称重计价 =====
+var weighProducts=[]; 
+var weighPollTimer=null;
+var selectedWeighItem=null;
+var currentWeight=0;
+var lastStableWeights=[];
+
+function renderWeighProducts(){
+  var h='';
+  weighProducts.forEach(function(p,i){
+    h+='<div class="weigh-item-card" onclick="selectWeighItem('+i+')" id="wp-'+i+'">';
+    h+='<div style="font-size:36px; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.15));">'+p.icon+'</div>';
+    h+='<div style="font-size:14px; font-weight:700; color:#fff; margin-top:8px;">'+p.name+'</div>';
+    h+='<div style="font-size:12px; color:#06b6d4; margin-top:4px; font-weight:600;">¥'+p.price.toFixed(2)+'<span style="color:rgba(255,255,255,0.6)">/500g</span></div>';
+    h+='</div>';
+  });
+  document.getElementById('weighProducts').innerHTML=h;
+}
+
+function selectWeighItem(idx){
+  selectedWeighItem=weighProducts[idx];
+  document.querySelectorAll('[id^="wp-"]').forEach(function(el){el.classList.remove('active')});
+  var el=document.getElementById('wp-'+idx);
+  if(el)el.classList.add('active');
+  document.getElementById('weighItemName').innerHTML=selectedWeighItem.icon+' '+selectedWeighItem.name;
+  document.getElementById('weighPrice').textContent='¥'+selectedWeighItem.price.toFixed(2)+'/500g';
+  updateWeighTotal();
+}
+
+function updateWeighTotal(){
+  var total=0;
+  if(selectedWeighItem&&currentWeight>2){
+    total=(currentWeight/500)*selectedWeighItem.price;
+    document.getElementById('weighTotal').textContent='¥'+total.toFixed(2);
+    document.getElementById('weighBtn').disabled=false;
+    document.getElementById('weighBtn').innerHTML='🛒 加入购物车清单 (¥'+total.toFixed(2)+')';
+  }else{
+    document.getElementById('weighTotal').textContent='¥0.00';
+    document.getElementById('weighBtn').disabled=true;
+    document.getElementById('weighBtn').textContent='👈 先选商品，再将物品放上托盘';
+  }
+}
+
+function startWeighPoll(){
+  stopWeighPoll();
+  weighProducts=allProducts.filter(function(p){return p.isWeigh;});
+  if(weighProducts.length===0)weighProducts=[{name:'散装糖果',price:18,icon:'🍬'},{name:'散装坚果',price:25,icon:'🥜'}];
+  renderWeighProducts();
+  weighPollTimer=setInterval(async function(){
+    try{
+      var r=await fetch('/api/weight');
+      var d=await r.json();
+      if(!d.ok)return;
+      currentWeight=d.weight_g;
+      document.getElementById('weighValue').textContent=currentWeight.toFixed(1);
+      lastStableWeights.push(currentWeight);
+      if(lastStableWeights.length>10)lastStableWeights.shift();
+      var stable=true;
+      if(lastStableWeights.length>=5){
+        for(var i=1;i<lastStableWeights.length;i++){
+          if(Math.abs(lastStableWeights[i]-lastStableWeights[i-1])>3){stable=false;break;}
+        }
+      }
+      var st=document.getElementById('weighStatus');
+      if(currentWeight<2){st.textContent='等待放置物品...';st.style.color='rgba(255,255,255,0.5)';}
+      else if(!stable){st.innerHTML='<span class="scan-dot" style="background:#fff;box-shadow:0 0 8px #fff;"></span>正在精确计算中...';st.style.color='#fff';}
+      else{st.textContent='✓ 重量已稳定锁定';st.style.color='#fff';}
+      updateWeighTotal();
+    }catch(e){}
+  },300);
+}
+
+function stopWeighPoll(){
+  if(weighPollTimer){clearInterval(weighPollTimer);weighPollTimer=null;}
+}
+
+function weighAddToCart(){
+  if(!selectedWeighItem||currentWeight<2)return;
+  var total=(currentWeight/500)*selectedWeighItem.price;
+  var label=selectedWeighItem.name+' ('+currentWeight.toFixed(0)+'g)';
+  var wcode='WEIGH_'+selectedWeighItem.name+'_'+total.toFixed(2)+'_'+Date.now();
+  allProducts.push({qr_code:wcode,name:label,price:parseFloat(total.toFixed(2)),stock:99,today_sold:0,mfg_date:'-',shelf_life:0,icon:selectedWeighItem.icon});
+  productMap[wcode]=allProducts[allProducts.length-1];
+  addToCart(wcode);
+  showToast('✅ 成功加入: '+label+' (¥'+total.toFixed(2)+')','ok');
+  selectedWeighItem=null;currentWeight=0;lastStableWeights=[];
+  document.querySelectorAll('[id^="wp-"]').forEach(function(el){el.classList.remove('active')});
+  document.getElementById('weighItemName').textContent='未选择商品';
+  document.getElementById('weighPrice').textContent='¥0.00';
+  updateWeighTotal();
+  renderWeighProducts();
+}
+
+var lastGunCode='';
+setInterval(async function(){
+  try{
+    var r=await fetch('/api/customer/scan-event');
+    var d=await r.json();
+    if(d.code&&d.code.length>=8&&d.code!==lastGunCode){
+      lastGunCode=d.code;
+      var p=findProduct(d.code);
+      if(!p)return;
+      addToCart(d.code);
+      showScanResult(d.code);
+    }
+  }catch(e){}
+},800);
+
+let idleTimer;
+function resetIdleTimer(){
+  clearTimeout(idleTimer);
+  idleTimer=setTimeout(function(){window.location.href="/bigscreen";},30000);
+}
+document.addEventListener("click",resetIdleTimer);
+document.addEventListener("touchstart",resetIdleTimer);
+document.addEventListener("touchmove",resetIdleTimer);
+document.addEventListener("mousemove",resetIdleTimer);
+resetIdleTimer();
+
+setInterval(async function(){
+  try {
+    var r = await fetch('/api/voice-subtitles');
+    var d = await r.json();
+    var box = document.getElementById('subtitleBox');
+    if(d.show){
+      document.getElementById('subQ').textContent = d.q;
+      document.getElementById('subA').textContent = d.a;
+      box.classList.add('show');
+    } else {
+      box.classList.remove('show');
+    }
+  } catch(e) {}
+}, 500);
+
+if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(function(){});}
+
+</script>
+</body>
+</html>
