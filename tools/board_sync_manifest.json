@@ -1,0 +1,175 @@
+{
+  "_comment": [
+    "本地文件 -> 板端路径 的部署映射。核对工具 tools/check_board_sync.py 读这份清单。",
+    "",
+    "板端路径不是猜的，来源是各模块 systemd unit 的 WorkingDirectory / ExecStart，",
+    "以及 deploy_to_board.sh 里实际的 scp 目标。改部署路径时记得同步改这里。",
+    "",
+    "required=true  -> 哈希不一致 / 板端缺失 会让核对失败（退出码 1）",
+    "required=false -> 只提示，不影响退出码（比如测试脚本、可选文件）"
+  ],
+  "entries": [
+    {
+      "local": "rk3568/store-backend/store_service.py",
+      "remote": "/home/linaro/ai/store/store_service.py",
+      "required": true,
+      "note": "8094 收银后端"
+    },
+    {
+      "local": "rk3568/store-backend/test_store_e2e.py",
+      "remote": "/home/linaro/ai/store/test_store_e2e.py",
+      "required": false,
+      "note": "77 回归之一，板上可直接跑"
+    },
+    {
+      "local": "rk3568/store-backend/scanner_service.py",
+      "remote": "/home/linaro/ai/scanner/scanner_service.py",
+      "required": true,
+      "note": "8095 扫码枪"
+    },
+    {
+      "local": "rk3568/store-backend/test_scanner_decode.py",
+      "remote": "/home/linaro/ai/scanner/test_scanner_decode.py",
+      "required": false,
+      "note": "77 回归之一"
+    },
+    {
+      "local": "rk3568/store-backend/ocr_service.py",
+      "remote": "/home/linaro/ai/ocr/ocr_service.py",
+      "required": true,
+      "note": "8096 OCR"
+    },
+    {
+      "local": "rk3568/store-backend/test_ocr_parse.py",
+      "remote": "/home/linaro/ai/ocr/test_ocr_parse.py",
+      "required": false,
+      "note": "77 回归之一"
+    },
+    {
+      "local": "rk3568/store-backend/deploy_model.sh",
+      "remote": "/home/linaro/ai/deploy_model.sh",
+      "required": true,
+      "note": "模型安全替换工具"
+    },
+    {
+      "local": "rk3568/store-backend/rk3568-store.service",
+      "remote": "/etc/systemd/system/rk3568-store.service",
+      "required": true,
+      "note": "unit"
+    },
+    {
+      "local": "rk3568/store-backend/rk3568-scanner.service",
+      "remote": "/etc/systemd/system/rk3568-scanner.service",
+      "required": true,
+      "note": "unit"
+    },
+    {
+      "local": "rk3568/store-backend/rk3568-ocr.service",
+      "remote": "/etc/systemd/system/rk3568-ocr.service",
+      "required": true,
+      "note": "unit"
+    },
+
+    {
+      "local": "rk3568/fruit-model/fruit_service.py",
+      "remote": "/home/linaro/ai/fruit/fruit_service.py",
+      "required": true,
+      "note": "8089 水果识别（自包含，不 import yolo11_infer/vision_service）"
+    },
+    {
+      "local": "rk3568/fruit-fusion/deploy/rk3568-fruit.service",
+      "remote": "/etc/systemd/system/rk3568-fruit.service",
+      "required": true,
+      "note": "8 类模型版，取代 fruit-model 下的同名旧 unit"
+    },
+
+    {
+      "local": "rk3568/fruit-fusion/fruit_fusion_service.py",
+      "remote": "/home/linaro/ai/fruit-fusion/fruit_fusion_service.py",
+      "required": true,
+      "note": "8099 融合服务（import fruit_fusion + vision_observer）"
+    },
+    {
+      "local": "rk3568/fruit-fusion/fruit_fusion.py",
+      "remote": "/home/linaro/ai/fruit-fusion/fruit_fusion.py",
+      "required": true,
+      "note": "被 8099 import，必须同目录"
+    },
+    {
+      "local": "rk3568/fruit-fusion/vision_observer.py",
+      "remote": "/home/linaro/ai/fruit-fusion/vision_observer.py",
+      "required": true,
+      "note": "被 8099 / 桥接 import，必须同目录"
+    },
+    {
+      "local": "rk3568/fruit-fusion/fruit_fusion_bridge.py",
+      "remote": "/home/linaro/ai/fruit-fusion/fruit_fusion_bridge.py",
+      "required": true,
+      "note": "1400ms 桥接"
+    },
+    {
+      "local": "rk3568/fruit-fusion/fruit_rules.json",
+      "remote": "/home/linaro/ai/fruit-fusion/fruit_rules.json",
+      "required": true,
+      "note": "fruit_fusion.py 从自己所在目录加载，缺了会回落默认值（静默失效）"
+    },
+    {
+      "local": "rk3568/fruit-fusion/deploy/rk3568-fruit-fusion.service",
+      "remote": "/etc/systemd/system/rk3568-fruit-fusion.service",
+      "required": true,
+      "note": "unit"
+    },
+    {
+      "local": "rk3568/fruit-fusion/test_fruit_fusion.py",
+      "remote": "/home/linaro/ai/fruit-fusion/test_fruit_fusion.py",
+      "required": false,
+      "note": "268 测试之一，整目录 pscp 时应一起上去"
+    },
+    {
+      "local": "rk3568/fruit-fusion/test_vision_observer.py",
+      "remote": "/home/linaro/ai/fruit-fusion/test_vision_observer.py",
+      "required": false,
+      "note": "268 测试之一"
+    },
+    {
+      "local": "rk3568/fruit-fusion/test_fruit_fusion_service.py",
+      "remote": "/home/linaro/ai/fruit-fusion/test_fruit_fusion_service.py",
+      "required": false,
+      "note": "268 测试之一"
+    },
+    {
+      "local": "rk3568/fruit-fusion/test_fruit_fusion_bridge.py",
+      "remote": "/home/linaro/ai/fruit-fusion/test_fruit_fusion_bridge.py",
+      "required": false,
+      "note": "268 测试之一"
+    },
+
+    {
+      "local": "rk3568/vlm/board/vlm_client_service.py",
+      "remote": "/home/linaro/ai/vlm/vlm_client_service.py",
+      "required": true,
+      "note": "8092 识图问答板端代理"
+    },
+    {
+      "local": "rk3568/vlm/board/rk3568-vlm.service",
+      "remote": "/etc/systemd/system/rk3568-vlm.service",
+      "required": true,
+      "note": "unit"
+    }
+  ],
+
+  "_unverified": [
+    "下面这些本地文件到底部署在板端哪里，目前没有权威依据（unit 里没有引用、",
+    "部署脚本里也没有），所以不纳入核对，只列出来提醒别忘。",
+    "确认后请把它们挪进上面的 entries。"
+  ],
+  "unverified": [
+    "rk3568/fruit-model/vision_service.py",
+    "rk3568/fruit-model/yolo11_infer.py",
+    "rk3568/fruit-model/rk3568-fruit.service",
+    "rk3568/vlm/vlm_service.py",
+    "rk3568/vlm/mock_vlm_backend.py",
+    "rk3568/vlm/vlm_config.json",
+    "rk3568/services/（14 个文件，雷达/视觉/融合 8090/8091/8088 那批）"
+  ]
+}

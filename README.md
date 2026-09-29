@@ -37,7 +37,7 @@
 │   └── vlm/                        8092 视觉大模型代理（mock 可跑）
 │
 ├── docs/                           迁移总览、交接文档、开工说明
-├── tools/                          凭据残留守卫等小工具
+├── tools/                          守卫与核对小工具（凭据 / py37 / 部署漂移）
 └── .gitignore
 ```
 
@@ -330,9 +330,23 @@ python tools/test_check_py37.py
   python test_fruit_fusion_service.py
   python test_fruit_fusion_bridge.py
   cd ../..
-  python tools/check_literals.py
-  python tools/check_py37.py
+  python tools/check_literals.py          # 凭据残留
+  python tools/check_py37.py              # 板端 3.7 兼容
+  python tools/test_check_py37.py         # 上面那个守卫自己的自测
+  python tools/test_check_board_sync.py   # 部署漂移核对工具的自测
   ```
+
+  收银后端还有 77 个回归测试，**要先把服务跑起来**（E2E 打的是 HTTP 接口）：
+
+  ```bash
+  cd rk3568/store-backend
+  python store_service.py --port 8094 --db /tmp/store.db --receipt-dir /tmp/receipts &
+  python test_ocr_parse.py && python test_scanner_decode.py
+  python test_store_e2e.py --base http://127.0.0.1:8094
+  ```
+
+  > `test_store_e2e.py` 的 `--base` 既能打本地也能打板端
+  > （`--base http://<板端IP>:8094`），所以它同时也是端到端验收脚本。
 
 ---
 
@@ -366,3 +380,44 @@ git push
 | 冲突别硬推 | `git pull --rebase` 冲突就手动解，解完 `git rebase --continue`。**不要 `push -f`** |
 
 > 万一 `git push` 被拒说 non-fast-forward，**不要 `-f`**，先 `git pull --rebase` 再看。
+
+---
+
+## 11. 部署漂移核对（本地 vs 板端）
+
+这个项目**出过「本地改了但没部署」的事故**——本地跑得好好的，板上还是旧版，排查半天才发现
+服务里跑的是上一个版本。手工 `scp` 没有版本概念，只能靠比对哈希兜。
+
+板子在手边时，一条命令核对全部部署文件：
+
+```bash
+python tools/check_board_sync.py --board <板端IP>
+```
+
+输出逐项标状态：
+
+| 标记 | 含义 | 怎么办 |
+|---|---|---|
+| `OK` | 本地与板端哈希一致 | 不用管 |
+| `不一致` | **本地改了没部署** | 跑对应模块的部署脚本 |
+| `板端缺失` | 没部署过，或路径变了 | 检查板端路径 / 跑部署脚本 |
+| `本地缺失` | 映射表过期 | 修 `tools/board_sync_manifest.json` |
+
+不连板子也能用：
+
+```bash
+python tools/check_board_sync.py --manifest            # 只打印「本地文件 → 板端路径」映射表
+python tools/check_board_sync.py --local-root <目录>    # 拿本地目录假装板端（离线核对）
+python tools/test_check_board_sync.py                  # 工具自测（造假板端，验能抓漂移）
+```
+
+映射表在 `tools/board_sync_manifest.json`。**里面的板端路径不是猜的**——来源是各模块
+systemd unit 的 `WorkingDirectory` / `ExecStart`，以及部署脚本里实际的 `scp` 目标。
+改了部署路径记得同步改映射表。清单里标 `required: false` 的（测试脚本等）只提示，不影响退出码。
+
+> ⚠️ 有个坑它会主动提醒：**本地文件带 CRLF 行尾**时，`scp` 上去的行尾和 Linux 版不同，
+> 哈希必然不一致。看到这个警告先跑 `git config core.autocrlf false` 重新检出，
+> 别当成"没部署"白查半天。
+>
+> 另外，部署到板端的是**工作区文件**（`scp` 直接传），所以核对比的是工作区，
+> 不是 git 里的 blob。
