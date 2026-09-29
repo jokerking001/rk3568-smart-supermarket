@@ -47,10 +47,41 @@
 
 ### 3.1 克隆
 
+仓库是**私有**的，所以先让管理员把你加成 collaborator（GitHub 仓库页 → Settings → Collaborators），**接受邮件邀请之后**才能拉。然后二选一配鉴权：
+
+**方式 A：SSH（推荐，配一次就不用管）**
+
 ```bash
-git clone <仓库地址>
+ssh-keygen -t ed25519 -C "你的邮箱"        # 一路回车即可
+cat ~/.ssh/id_ed25519.pub                  # 复制这行内容
+```
+
+粘到 GitHub → Settings → SSH and GPG keys → New SSH key，然后：
+
+```bash
+git clone git@github.com:<owner>/rk3568-smart-supermarket.git
+```
+
+**方式 B：HTTPS + 个人访问令牌（PAT）**
+
+GitHub 已经不能用账号密码拉私有库了，必须用 PAT（Settings → Developer settings → Personal access tokens，勾 `repo` 权限）。**别把 token 写进 URL 后提交到任何地方**，用凭据管理器存：
+
+```bash
+# Windows：装 Git for Windows 后自带
+git config --global credential.helper manager
+
+# macOS
+git config --global credential.helper osxkeychain
+
+git clone https://github.com/<owner>/rk3568-smart-supermarket.git
+# 提示 Username 填 GitHub 用户名，Password 粘 PAT（不是登录密码）
+```
+
+```bash
 cd rk3568-smart-supermarket
 ```
+
+> 拉下来先跑一次 `bash tools/install-hooks.sh`（见第 6 节），之后提交会自动过守卫。
 
 ### 3.2 配 `secrets.h`（必做，否则编不过）
 
@@ -304,3 +335,36 @@ python tools/test_check_py37.py
   python tools/check_literals.py
   python tools/check_py37.py
   ```
+
+---
+
+## 10. 日常协作
+
+主线分支就是 `main`，**没有多余的分支仪式**——这套工程是几个人分头改不同模块，撞车概率低。
+
+**开工前**
+
+```bash
+git pull --rebase        # 用 rebase 而不是 merge，历史干净
+```
+
+**收工前**
+
+```bash
+git add -A
+git commit -m "模块: 干了什么"
+git pull --rebase        # 先拉再推，避免非快进被拒
+git push
+```
+
+**几条硬规矩**
+
+| 规矩 | 为什么 |
+|---|---|
+| **`secrets.h` 永不提交** | 已在 `.gitignore` 里。谁把密钥推上去，就得去控制台作废重发 |
+| 改完板端 `.py` 跑一次 `check_py37.py` | 本地能跑 ≠ 板上能跑，板子是 3.7.3 |
+| 提交前跑 `bash tools/install-hooks.sh`（每人一次） | 装完这两道守卫自动跑，不用记 |
+| 二进制模型（`.pt/.onnx/.rknn`）不进仓库 | 已在 `.gitignore`。走 `artifacts/` 或另外传 |
+| 冲突别硬推 | `git pull --rebase` 冲突就手动解，解完 `git rebase --continue`。**不要 `push -f`** |
+
+> 万一 `git push` 被拒说 non-fast-forward，**不要 `-f`**，先 `git pull --rebase` 再看。
