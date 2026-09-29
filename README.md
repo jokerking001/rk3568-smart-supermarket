@@ -213,6 +213,35 @@ bash   04_pack_rknn_bundle.sh    # 打成给转换机的离线包
 - `tools/scan_secrets.py` 是更宽的模式扫描，用来找"新引入的、还没登记进守卫"的凭据。
 - 内网 IP（`192.168.43.x`）也抽进了 `secrets.h`——它们不是密钥，但换现场就得改，放在源码里迟早漏一个。
 
+### 6.1 板端 Python 3.7 守卫
+
+板子是 Debian 10 + **Python 3.7.3**，开发机是 3.10+。`list[int]`、`s.removeprefix()`、`a | b` 这类写法在电脑上跑得好好的，**上板才炸** —— 本地测不出来，所以单独做了个守卫：
+
+```bash
+python tools/check_py37.py            # 扫 rk3568/ 下的板端代码
+python tools/check_py37.py --all      # 连 tools/ 一起扫
+python tools/check_py37.py <路径...>   # 只扫指定文件/目录
+```
+
+两层检查：
+
+| 层 | 手段 | 抓什么 |
+|---|---|---|
+| 语法 | `ast.parse(feature_version=(3,7))` | 海象 `:=`、`match`、位置限定参数 `/`、f-string 的 `=` 说明符 |
+| 语义 | 走 AST | PEP 585 泛型下标、`removeprefix/removesuffix`、`math.lcm` 等、能静态确定的 dict 合并 |
+
+> 语义层**刻意不用正则**——正则会命中注释和文档字符串里提到的 `list[int]`（第一版就是这么误报的）。
+>
+> **已知漏报（宁漏不误）**：`a | b` 两个变量无法静态区分字典合并还是集合求并，因此不报。写代码时自己留意。
+
+守卫本身也有自测，同时验证"该抓的抓到"和"不该报的不报"：
+
+```bash
+python tools/test_check_py37.py
+```
+
+上面 `install-hooks.sh` 装的 pre-commit 钩子已经把这个守卫接进去了——每次提交会对**暂存的 `.py`** 跑一遍。
+
 > 🔴 **如果这些密钥曾经明文提交过，光删掉不够。** DashScope 的 `sk-` 和百度那对 key 建议直接去控制台作废重发。
 
 ---
@@ -262,7 +291,7 @@ bash   04_pack_rknn_bundle.sh    # 打成给转换机的离线包
 
 ## 9. 约定
 
-- 板端 Python 代码必须兼容 **Python 3.7.3**：不能用海象运算符、字典合并、`list[int]` 这类 3.9+ 语法。
+- 板端 Python 代码必须兼容 **Python 3.7.3**：不能用海象运算符、字典合并、`list[int]` 这类 3.9+ 语法。改完跑 `python tools/check_py37.py` 确认。
 - 提交前自测（在仓库根目录跑）：
 
   ```bash
@@ -273,4 +302,5 @@ bash   04_pack_rknn_bundle.sh    # 打成给转换机的离线包
   python test_fruit_fusion_bridge.py
   cd ../..
   python tools/check_literals.py
+  python tools/check_py37.py
   ```
