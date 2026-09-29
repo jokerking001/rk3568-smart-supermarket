@@ -47,39 +47,37 @@
 
 ### 3.1 克隆
 
-仓库是**私有**的，所以先让管理员把你加成 collaborator（GitHub 仓库页 → Settings → Collaborators），**接受邮件邀请之后**才能拉。然后二选一配鉴权：
-
-**方式 A：SSH（推荐，配一次就不用管）**
+仓库是**公开**的，直接拉就行，不需要账号、不需要邀请：
 
 ```bash
-ssh-keygen -t ed25519 -C "你的邮箱"        # 一路回车即可
-cat ~/.ssh/id_ed25519.pub                  # 复制这行内容
-```
-
-粘到 GitHub → Settings → SSH and GPG keys → New SSH key，然后：
-
-```bash
-git clone git@github.com:<owner>/rk3568-smart-supermarket.git
-```
-
-**方式 B：HTTPS + 个人访问令牌（PAT）**
-
-GitHub 已经不能用账号密码拉私有库了，必须用 PAT（Settings → Developer settings → Personal access tokens，勾 `repo` 权限）。**别把 token 写进 URL 后提交到任何地方**，用凭据管理器存：
-
-```bash
-# Windows：装 Git for Windows 后自带
-git config --global credential.helper manager
-
-# macOS
-git config --global credential.helper osxkeychain
-
-git clone https://github.com/<owner>/rk3568-smart-supermarket.git
-# 提示 Username 填 GitHub 用户名，Password 粘 PAT（不是登录密码）
-```
-
-```bash
+git clone https://github.com/jokerking001/rk3568-smart-supermarket.git
 cd rk3568-smart-supermarket
 ```
+
+> 想改成 SSH 也可以（配一次就不用输凭据）：
+>
+> ```bash
+> ssh-keygen -t ed25519 -C "你的邮箱"        # 一路回车即可
+> cat ~/.ssh/id_ed25519.pub                  # 复制这行内容
+> ```
+>
+> 粘到 GitHub → Settings → SSH and GPG keys → New SSH key，然后把远端地址换成
+> `git@github.com:jokerking001/rk3568-smart-supermarket.git`。
+>
+> ⚠️ **拉取不需要鉴权，但推送需要。** 你要往仓库里提交，得先让管理员把你加成
+> collaborator（仓库页 → Settings → Collaborators → Add people），**接受邮件邀请之后**
+> 才能 push。之后配一次凭据：
+>
+> ```bash
+> # Windows：装 Git for Windows 后自带
+> git config --global credential.helper manager
+> # macOS
+> git config --global credential.helper osxkeychain
+> ```
+>
+> 再 `git push` 时，Username 填 GitHub 用户名，Password 粘 **PAT**
+> （Settings → Developer settings → Personal access tokens，勾 `repo` 权限）——
+> GitHub 已经不能用账号登录密码推送了。**别把 token 写进 URL 后提交到任何地方。**
 
 > 拉下来先跑一次 `bash tools/install-hooks.sh`（见第 6 节），之后提交会自动过守卫。
 

@@ -4,7 +4,14 @@ import os
 import re
 import sys
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
+# 仓库根目录 —— __file__ 是 tools/scan_secrets.py，所以要往上退一层。
+# （原来写成 os.path.dirname(__file__)，结果只扫 tools/ 自己那 6 个文件，
+#   却照样打印"没有发现残留明文凭据"，是个会骗人的假绿。）
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# 本文件自己必然含有上面这些模式（比如 "juhe.*key" 会匹配到 "juhe_key" 这个标签名），
+# 扫自己只会产生假阳性，直接跳过。
+SELF = os.path.basename(os.path.abspath(__file__))
 
 # (标签, 正则)  —— 只报告位置，不回显明文
 PATTERNS = [
@@ -29,6 +36,8 @@ def main():
     for dirpath, dirnames, filenames in os.walk(ROOT):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
         for fn in filenames:
+            if fn == SELF:
+                continue
             ext = os.path.splitext(fn)[1].lower()
             if ext in SKIP_EXT:
                 continue
