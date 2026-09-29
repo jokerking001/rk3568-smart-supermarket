@@ -369,6 +369,9 @@ python tools/test_check_py37.py
   python tools/check_py37.py              # 板端 3.7 兼容
   python tools/test_check_py37.py         # 上面那个守卫自己的自测
   python tools/test_check_board_sync.py   # 部署漂移核对工具的自测
+  python tools/test_board_acceptance.py   # 板端验收脚本的自测（不需要板子）
+  python tools/test_stress_test.py        # 压测脚本的自测（不需要板子）
+  python tools/test_calibrate_int8.py     # INT8 校准工具的自测（不需要板子）
   ```
 
   收银后端还有 77 个回归测试，**要先把服务跑起来**（E2E 打的是 HTTP 接口）：
@@ -456,3 +459,85 @@ systemd unit 的 `WorkingDirectory` / `ExecStart`，以及部署脚本里实际�
 >
 > 另外，部署到板端的是**工作区文件**（`scp` 直接传），所以核对比的是工作区，
 > 不是 git 里的 blob。
+
+---
+
+## 12. 上板第一天：三条命令
+
+板子插电、接上同一个网之后，按顺序跑这三条。**前一条不绿就别往下走。**
+
+```bash
+# 1) 一键验收 —— 服务健康 + 部署一致性 + 77 项回归，一次跑完
+python tools/board_acceptance.py --board <板端IP>
+
+# 2) 30 分钟持续压测 —— 温度 / FPS / 雷达掉线率 / NPU 错误
+python tools/stress_test_30min.py --board <板端IP>
+
+# 3) INT8 校准（模型要换的时候才需要）
+python tools/calibrate_int8.py collect --board <板端IP> --count 200
+```
+
+### 12.1 一键验收 `board_acceptance.py`
+
+把「上板要做的三件事」合成一条命令：
+
+| 阶段 | 做什么 | 失败意味着 |
+|---|---|---|
+| 0 | 先探 `:8094` 通不通 | 板子没上电 / 不在同一网段 / IP 变了 —— 立刻收工，不干等 |
+| 1 | 十个服务健康检查（8088–8096 + 8099，并发探） | 某个服务没起来，去看对应 systemd unit |
+| 2 | 本地 vs 板端哈希核对 | **本地改了没部署** —— 跑对应模块的部署脚本 |
+| 3 | 77 项回归（板端执行） | 板端代码有问题 |
+
+```bash
+python tools/board_acceptance.py --board 192.168.43.44                 # 全跑
+python tools/board_acceptance.py --board 192.168.43.44 --skip-regression   # 只看健康+一致性，快
+python tools/board_acceptance.py --board 192.168.43.44 --skip-sync         # 没配 SSH 时
+python tools/board_acceptance.py --local                                   # 在板子本机上跑
+```
+
+它**显式禁用代理**——本机 shell 常继承 `http_proxy`，不关掉的话连 `192.168.x.x`
+会被绕出去超时，看起来像"板子不在线"。它还区分「端口拒绝」（服务没起来）
+和「超时」（网络不通），省得查错方向。
+
+### 12.2 压测 `stress_test_30min.py`
+
+只打**只读、幂等**的查询接口——压测绝不能往业务里写数据，不然 30 分钟后库存和订单全乱。
+
+判定用**三态**：`pass` / `fail` / `unknown`。
+
+> ⚠️ **`unknown` 不算通过。** 没测到数据（比如 SSH 不通拿不到温度）时会明确报
+> 「没测到」，而不是给你一个假绿。压测脚本报绿却什么都没测到，比不跑更危险。
+
+阈值可覆盖：
+
+```bash
+python tools/stress_test_30min.py --board <IP> \
+  --success-rate 99 --vision-p95 500 --temp-max 85 --radar-drop 5
+```
+
+报告落在 `artifacts/stress_<时间戳>.{json,txt}`——JSON 是原始采样，可以拿来画温度曲线。
+
+### 12.3 INT8 校准 `calibrate_int8.py`
+
+**校准集和验证集的要求不一样，别混：**
+
+| | 从哪来 | 能不能有重复帧 |
+|---|---|---|
+| **校准集** | 板端 8088 `/raw.jpg`（**原始帧，不带检测框**），必须在真机位真光照下抓 | **可以**——校准只要激活值范围 |
+| **验证集** | 带标注的数据集，**按采集会话切分** | **不可以**——相邻帧几乎一样，随机拆会让精度虚高 |
+
+用带检测框的图（`/fruit.jpg`）做校准是错的——框是推理产物，会把输入分布带偏。
+
+```bash
+python tools/calibrate_int8.py collect --board <IP> --count 200 --interval 1.0
+python tools/calibrate_int8.py pack --onnx <模型.onnx> --calib calib --out dist/calib_bundle
+# 拷到转换机：tar czf calib_bundle.tar.gz -C dist/calib_bundle .
+# 转换机上：  bash vm_calibrate_int8.sh
+python tools/calibrate_int8.py compare --result result.json
+```
+
+`pack` 产出自包含包（校准图 + onnx + 转换脚本 + 元数据），**全程可离线**。
+生成的 shell 脚本已校验是 LF——CRLF 到转换机会报 `/bin/bash^M`。
+
+> Windows 上 `chmod` 设不了 POSIX 执行位，所以调用一律写
+> `bash vm_calibrate_int8.sh`，别用 `./vm_calibrate_int8.sh`。
