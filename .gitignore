@@ -70,9 +70,13 @@ dist/
 calib/
 calib_640/
 calib_src/
-dataset/raw/
-dataset/*/images/
-dataset/*/labels/
+# 注意 `**/` 前缀不能省：.gitignore 里**中间带斜杠**的规则是锚定到仓库根目录的，
+# 写成 `dataset/raw/` 只匹配 <根>/dataset/raw/，而实际路径是
+# rk3568/fruit-train/dataset/raw/ —— 一条都不会生效（之前目录是空的，没暴露）。
+**/dataset/raw/
+**/dataset/parquet/
+**/dataset/*/images/
+**/dataset/*/labels/
 runs/
 weights/
 
