@@ -175,17 +175,23 @@ idf.py -p <PORT> flash monitor
 
 **RK3568 板端**
 
-```bash
-# 服务代码
-scp rk3568/store-backend/*.py linaro@<板子IP>:/home/linaro/ai/store/
-scp -r rk3568/store-backend/web/. linaro@<板子IP>:/home/linaro/ai/store/web/
-scp rk3568/fruit-fusion/*.py  linaro@<板子IP>:/home/linaro/ai/fruit-fusion/
+**一个模块一个部署脚本**，别手工 scp。手工漏一步（漏传 `web/`、漏装 unit、漏重启）
+不会报错，只会让某个端口静默不工作 —— 8099 就是这么一直没起来的。
 
-# systemd 单元
-sudo cp rk3568/*/*.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now rk3568-store.service rk3568-fruit.service rk3568-fruit-fusion.service
+```bash
+BOARD=<板子IP> bash rk3568/store-backend/deploy_to_board.sh   # 8094 + 8095 + 8096
+BOARD=<板子IP> bash rk3568/fruit-fusion/deploy_to_board.sh    # 8099
+BOARD=<板子IP> bash rk3568/vlm/deploy_to_board.sh             # 8092
+
+# 一键验收：健康检查 + 部署一致性 + 598 项回归
+python tools/board_acceptance.py --board <板子IP>
 ```
+
+板端 IP 跟着热点变（热点一换就变），所以**别依赖脚本里的默认值**，一律显式传 `BOARD=`。
+
+> `fruit-fusion/deploy_to_board.sh` 里有一道闸门：模型文件
+> `/home/linaro/ai/models/fruit8_yolo11n_i8.rknn` 不在就**不重启 8089**。
+> 因为重启了它只会变成 `model_loaded: false` —— 服务是活的却不干活，比不重启更难查。
 
 板子环境：Debian 10 arm64、Linux 4.19.232、**Python 3.7.3**、用户 `linaro`。
 `rknnlite` 在 `~/.local/lib/python3.7/site-packages`，跑推理要 `sudo -u linaro -H python3`。
