@@ -7,8 +7,9 @@
 只能靠比对哈希兜。
 
 用法：
-    python tools/check_board_sync.py --board 10.181.229.215
-    python tools/check_board_sync.py --board 10.181.229.215 --user linaro \\
+    RK3568_BOARD=10.x.x.x python tools/check_board_sync.py        # 推荐：IP 走环境变量
+    python tools/check_board_sync.py --board 10.x.x.x
+    python tools/check_board_sync.py --board 10.x.x.x --user linaro \\
         --key ~/.ssh/id_ed25519_rk3568
     python tools/check_board_sync.py --manifest            # 只打印映射表，不连板子
     python tools/check_board_sync.py --local-root <目录>    # 拿本地目录假装板端（离线自测）
@@ -31,7 +32,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 MANIFEST = os.path.join(HERE, "board_sync_manifest.json")
 
-DEFAULT_BOARD = "10.181.229.215"
+# 板端 IP 跟着热点变，支持环境变量覆盖：RK3568_BOARD=10.x.x.x
+DEFAULT_BOARD = os.environ.get("RK3568_BOARD", "10.176.240.215")
 DEFAULT_USER = "linaro"
 DEFAULT_KEY = os.path.join(os.path.expanduser("~"), ".ssh", "id_ed25519_rk3568")
 

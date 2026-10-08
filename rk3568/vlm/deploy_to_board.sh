@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 # 部署板端「识图问答」服务到 ATK-DLRK3568。
 #
-#   BOARD=10.181.229.215 PC=10.181.229.84 bash deploy_to_board.sh
+#   BOARD=10.176.240.215 bash deploy_to_board.sh
 #
 # 只做四件事：scp -> 语法检查 -> 安装 unit -> 重启并验证。
 # 不会碰视觉/雷达/融合/收银等已有服务。
+#
+# 板端 IP 跟着热点变，下面的默认值只是「写这个脚本时的地址」—— 一律显式传 BOARD=。
 
 set -euo pipefail
 
-BOARD="${BOARD:-10.181.229.215}"
+BOARD="${BOARD:-10.176.240.215}"
 PC="${PC:-$(hostname -I 2>/dev/null | awk '{print $1}')}"
 [ -z "$PC" ] && PC="${PC_IP:-}"
 KEY="${KEY:-$HOME/.ssh/id_ed25519_rk3568}"

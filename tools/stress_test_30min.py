@@ -40,7 +40,8 @@ import urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 
-DEFAULT_BOARD = "10.181.229.215"
+# 板端 IP 跟着热点变，支持环境变量覆盖：RK3568_BOARD=10.x.x.x
+DEFAULT_BOARD = os.environ.get("RK3568_BOARD", "10.176.240.215")
 DEFAULT_USER = "linaro"
 DEFAULT_KEY = os.path.join(os.path.expanduser("~"), ".ssh", "id_ed25519_rk3568")
 

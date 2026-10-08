@@ -3,14 +3,15 @@
 #
 # Usage:
 #   ./deploy_to_board.sh                    # uses the defaults below
-#   BOARD=10.181.229.215 ./deploy_to_board.sh
+#   BOARD=10.176.240.215 ./deploy_to_board.sh
 #   ./deploy_to_board.sh --services-only    # skip file upload, just restart units
 #
 # The board IP changes with the network (handoff section 2), so it is overridable.
+# 下面这个默认值只是「写这个脚本时板子的地址」，换热点就会失效 —— 一律显式传 BOARD=。
 
 set -euo pipefail
 
-BOARD="${BOARD:-10.181.229.215}"
+BOARD="${BOARD:-10.176.240.215}"
 BOARD_USER="${BOARD_USER:-linaro}"
 KEY="${KEY:-$HOME/.ssh/id_ed25519_rk3568}"
 SSH_OPTS=(-i "$KEY" -o IPQoS=none -o ConnectTimeout=25 -o StrictHostKeyChecking=no -o BatchMode=yes)

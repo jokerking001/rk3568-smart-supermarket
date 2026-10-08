@@ -45,7 +45,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
-DEFAULT_BOARD = "10.181.229.215"
+# 板端 IP 跟着热点变，所以支持环境变量覆盖，不必改文件：
+#   RK3568_BOARD=10.x.x.x python tools/board_acceptance.py
+# 下面这个默认值只是「写这个工具时板子的地址」，换热点就会失效。
+DEFAULT_BOARD = os.environ.get("RK3568_BOARD", "10.176.240.215")
 DEFAULT_USER = "linaro"
 DEFAULT_KEY = os.path.join(os.path.expanduser("~"), ".ssh", "id_ed25519_rk3568")
 
