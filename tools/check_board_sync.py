@@ -39,7 +39,11 @@ DEFAULT_KEY = os.path.join(os.path.expanduser("~"), ".ssh", "id_ed25519_rk3568")
 
 # 让远端逐行读路径再逐个算哈希。
 # 路径走 stdin 而不是拼进命令行 —— 省掉一整套引号转义的地狱。
-REMOTE_SCRIPT = r'''while IFS= read -r p; do
+REMOTE_SCRIPT = r'''# `|| [ -n "$p" ]` 不能省：stdin 最后一行**没有换行符**时 `read` 返回非零，
+# 循环体整行被跳过 —— 表现是「清单里最后一条永远报板端缺失」。
+# 这个坑真的踩过：映射表最后一条 rk3568-vlm.service 一直被误报 MISSING。
+while IFS= read -r p || [ -n "$p" ]; do
+  [ -n "$p" ] || continue
   if [ -f "$p" ]; then
     h=$(sha256sum "$p")
     printf 'OK %s %s\n' "${h%% *}" "$p"
@@ -47,6 +51,16 @@ REMOTE_SCRIPT = r'''while IFS= read -r p; do
     printf 'MISS %s\n' "$p"
   fi
 done'''
+
+
+def paths_payload(paths):
+    """拼出喂给远端脚本的路径清单。
+
+    **末尾必须有换行符。** 少一个 \\n，远端 `while read` 就会把最后一条整个
+    吞掉，结果是把一条好文件误报成"板端缺失"。远端脚本虽然也做了容错，
+    这里仍然显式补上 —— 容错是兜底，不是把错的东西发出去的理由。
+    """
+    return ("\n".join(paths) + "\n").encode("utf-8")
 
 
 def sha256_of(path):
@@ -118,7 +132,7 @@ def probe_board(entries, board, user, key, timeout):
     ]
     proc = subprocess.run(
         cmd,
-        input="\n".join(paths).encode("utf-8"),
+        input=paths_payload(paths),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
