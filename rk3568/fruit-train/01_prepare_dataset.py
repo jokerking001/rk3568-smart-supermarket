@@ -25,7 +25,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 RAW_DIR = os.path.join(HERE, "dataset", "raw")
 OUT_DIR = os.path.join(HERE, "dataset", "fruit8")
 HF_ENDPOINT = "https://hf-mirror.com"
-REPO_ID = "henningheyhen/LVIS_Fruits_And_Vegetables"
+REPO_ID = "henningheyen/LVIS_Fruits_And_Vegetables"
 
 # LVIS 的类别名很长（如 "orange/orange fruit"），这里映射成训练用的短名。
 # 顺序即最终 data.yaml 里的类别顺序。
