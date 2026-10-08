@@ -103,11 +103,19 @@ fi
 PY="$VENV/bin/python"
 "$PY" -c 'import rknn, numpy, cv2; print("   rknn/numpy/cv2 导入正常，numpy", numpy.__version__)' \
   || die "$VENV 里 toolkit 导入检查失败"
-"$PY" -c 'import ultralytics' 2>/dev/null || {
+
+# ultralytics 只有「从 .pt 现场重导 ONNX」才用得上。
+# --no-export + 包内自带 .onnx 时根本不会走到那条路，所以别白装一遍
+# （它会连带拉 matplotlib/pandas 一堆，网络不通还会直接把脚本 die 掉）。
+if [ "$NO_EXPORT" = "1" ] && [ -f "$SCRIPT_DIR/$NAME.onnx" ]; then
+  ok "走 --no-export，跳过 ultralytics 检查（用包内 ONNX，不需要重导）"
+elif "$PY" -c 'import ultralytics' 2>/dev/null; then
+  ok "ultralytics 可用"
+else
   echo "   venv 里缺 ultralytics，补装（重导 ONNX 要用）"
   "$VENV/bin/pip" install -q -i "$PYPI_MIRROR" ultralytics || die "ultralytics 安装失败"
-}
-ok "ultralytics 可用"
+  ok "ultralytics 装好了"
+fi
 
 # ───────────────────────────────────────────────────────── 2. 权重 ──
 say "2. 权重"

@@ -77,6 +77,13 @@ calib_src/
 **/dataset/parquet/
 **/dataset/*/images/
 **/dataset/*/labels/
+# fruit-train 的 dataset/ 全是 `01_prepare_dataset.py` 生成的
+# （raw 是下载的、fruit8 是子集化的），一律不入库。
+# 里面唯一有点价值的是 fruit8/data.yaml，但它写的是**本机绝对路径**
+# （`path: F:/CodexAgent/...`），提交了反而在别人机器上是错的；
+# 类别顺序在 01_prepare_dataset.py 的 TARGET_CLASSES 里是权威的，
+# 跑一次 --subset 就会重新生成。
+**/fruit-train/dataset/
 runs/
 weights/
 

@@ -18,6 +18,10 @@ import os
 import shutil
 import sys
 
+# polars 的 CPU 自检在 AMD 上误报（build 声明了 `sse3`，自检表里没这个名字），
+# 而 ultralytics 会间接 import polars。详见 02_train.py 里的说明。
+os.environ.setdefault("POLARS_SKIP_CPU_CHECK", "1")
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(HERE, "artifacts")
 
