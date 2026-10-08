@@ -36,7 +36,11 @@ CALIB_DIR="$HERE/dataset/fruit8/images/val"
 CALIB_COUNT="80"
 OUT_ROOT="$HERE/dist"
 DATA_YAML="$HERE/dataset/fruit8/data.yaml"
-RULES="$HERE/../rk3568-fruit-fusion/fruit_rules.json"
+# 注意：实际目录是 rk3568/fruit-fusion/，**没有** rk3568- 前缀。
+# 这个默认值早先是从 2026-09-12 的旧项目结构抄过来的，那边目录叫
+# rk3568-fruit-fusion，搬进本仓库时没跟着改，于是 [ -f "$RULES" ] 恒为假
+# → 类别校验被静默跳过 → classes.txt 也写不出来 → 板端拿不到类别表。
+RULES="$HERE/../fruit-fusion/fruit_rules.json"
 BUILD_SCRIPT=""
 VM_SCRIPT="$HERE/04_vm_build_fruit8_rknn.sh"
 ALLOW_MISSING_CALIB=0

@@ -43,7 +43,50 @@ def nms(boxes,scores):
         order=order[np.where(iou<=NMS_THRESH)[0]+1]
     return np.array(keep,dtype=np.int32)
 
+def post_process_single(pred):
+    """单输出布局 (1, 4+nc, 8400) → (boxes, classes, scores)。
+
+    ultralytics 直接 export 出来的 ONNX/RKNN 就是这一种：前 4 通道**已经是
+    解码好的 xyxy**（DFL 烧进图里了），后面 nc 通道是已 sigmoid 的类别分数，
+    所以不需要 dfl()/box_process()。
+    boxes 仍在 640×640 letterbox 坐标系，调用方的 (x-dw)/r 反变换照样适用。
+    """
+    p=np.asarray(pred)[0].T                       # (8400, 4+nc)
+    # ！！前 4 通道是 **cxcywh**，不是 xyxy。实测 raw=[124.8,417.2,57.8,59.7]，
+    # 后两位是宽高：按 cxcywh 画框恰好套住橙子，按 xyxy 画则飞出画面。
+    # 调用方 fruit_service.py 是按 xyxy 做反 letterbox 的（[:,[0,2]] 当 x、
+    # [:,[1,3]] 当 y），nms() 也按 xyxy 算 IoU，所以必须先转过来。
+    xy=p[:,:4].astype(np.float32)
+    boxes=np.stack([xy[:,0]-xy[:,2]*0.5, xy[:,1]-xy[:,3]*0.5,
+                    xy[:,0]+xy[:,2]*0.5, xy[:,1]+xy[:,3]*0.5],axis=1)
+    scores_all=p[:,4:]
+    classes=np.argmax(scores_all,axis=1); scores=np.max(scores_all,axis=1)
+    idx=np.where(scores>=OBJ_THRESH)[0]
+    boxes,classes,scores=boxes[idx],classes[idx],scores[idx]
+    if len(boxes)==0:return None,None,None
+    ob=[]; oc=[]; os_=[]
+    for c in set(classes.tolist()):
+        ii=np.where(classes==c)[0]; k=nms(boxes[ii],scores[ii]); ob.append(boxes[ii][k]); oc.append(classes[ii][k]); os_.append(scores[ii][k])
+    return np.concatenate(ob),np.concatenate(oc),np.concatenate(os_)
+
 def post_process(outputs):
+    # RKNN 出来可能是两种布局，这里都认：
+    #
+    #   9 输出 —— RKNN 官方 model_zoo 的 YOLO 布局，每尺度三个张量
+    #     (box_dfl, class_scores, score_sum)，形状如
+    #     [(1,64,80,80),(1,80,80,80),(1,1,80,80), ...40×3, ...20×3]。
+    #     前 64 通道是 DFL 原始 logits，要现场解码。
+    #     板上的 yolo11n_i8.rknn / yolo11n_fp.rknn 就是这种（80 = COCO 类数）。
+    #
+    #   1 输出 —— ultralytics 直接 export 的单张量 (1, 4+nc, 8400)。
+    #     水果模型 fruit8_yolo11n_i8.rknn 是这种（12 = 4 box + 8 类）。
+    #
+    # 注意：**RKNN 不会自动把单输出切成 9 输出**。build_fruit_rknn.py 的注释
+    # 曾以为会，那个假设只在 model_zoo 导出的 ONNX 上成立。单输出若喂进下面
+    # 原来的循环，会死在 box_process 的 gh,gw=position.shape[2:4] 上
+    # （(1,12,8400)[2:4] 只有一个元素），报
+    #     not enough values to unpack (expected 2, got 1)
+    if len(outputs)==1:return post_process_single(outputs[0])
     boxes=[]; probs=[]; pair=len(outputs)//3
     for i in range(3): boxes.append(flatten(box_process(outputs[pair*i]))); probs.append(flatten(outputs[pair*i+1]))
     boxes=np.concatenate(boxes); probs=np.concatenate(probs); classes=np.argmax(probs,axis=1); scores=np.max(probs,axis=1); idx=np.where(scores>=OBJ_THRESH)[0]

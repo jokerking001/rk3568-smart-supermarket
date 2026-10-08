@@ -20,9 +20,14 @@ WorkingDirectory=/home/linaro/ai/fruit
 # 否则类别会串位。这 8 个名字同时必须与 fruit_rules.json 的 label 逐字相同
 # （校验：python3 05_check_labels.py --classes /home/linaro/ai/models/fruit8_yolo11n.classes.txt）
 # 注意 grape 写的是 grapes —— 原工程 VISION_WEIGHT_RULES 的 label 就是 grapes。
+# 用 **fp** 而不是 i8：这个 yolo11n 的分类头（model.23.cv3）权重里有 -18.6
+# 的 outlier，INT8 量化后分类分数被整体压成 0 —— 实测板端最大置信度
+# 0.00000，而同一个 ONNX 用 FP 跑是 0.939（126 个检出，orange conf 0.938）。
+# 换 mmse 量化算法能治，但 171 层要跑 5 小时 38 分，不划算，先记着。
+# 代价：254ms(3.9FPS) vs INT8 的 149ms(6.7FPS)，对水果识别够用。
 ExecStart=/usr/bin/python3 /home/linaro/ai/fruit/fruit_service.py \
     --port 8089 \
-    --model /home/linaro/ai/models/fruit8_yolo11n_i8.rknn \
+    --model /home/linaro/ai/models/fruit8_yolo11n_fp.rknn \
     --classes apple,banana,orange,grapes,pear,strawberry,kiwi,watermelon
 Restart=always
 RestartSec=2

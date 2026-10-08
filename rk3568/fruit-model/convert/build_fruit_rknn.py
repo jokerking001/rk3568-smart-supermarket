@@ -152,12 +152,19 @@ def build_calibration_list(calib_dir, target_txt, limit):
     return target_txt, len(images)
 
 
-def convert(onnx_path, out_path, platform, calib_txt, quantize, mean, std):
+def convert(onnx_path, out_path, platform, calib_txt, quantize, mean, std, algo="mmse"):
     from rknn.api import RKNN
 
     rknn = RKNN(verbose=True)
-    log("config_model platform=%s mean=%s std=%s" % (platform, mean, std))
-    if rknn.config(mean_values=[mean], std_values=[std], target_platform=platform) != 0:
+    log("config_model platform=%s mean=%s std=%s algo=%s" % (platform, mean, std, algo))
+    # quantized_algorithm 默认是 'normal'，但对 yolo11n 不成立：
+    # 分类头 model.23.cv3.0.0.0.conv.weight 的权重里有 -18.6 的 outlier
+    # （build 时会有 "found outlier value" 警告），normal 量化把 scale 撑大后
+    # 分类分数被整体压成 0 —— 实测板端最大置信度 0.00000，而同一个 ONNX
+    # 用 FP 跑是 0.939。mmse 按最小均方误差逐层搜索 scale，对这种长尾权重
+    # 明显更稳，所以这里默认用 mmse。
+    if rknn.config(mean_values=[mean], std_values=[std], target_platform=platform,
+                   quantized_algorithm=algo) != 0:
         log("ERROR: rknn.config failed")
         return False
     log("loading ONNX")
@@ -231,6 +238,10 @@ def main():
                         help="skip the ONNX simplifier during re-export")
     parser.add_argument("--mean", default="0,0,0")
     parser.add_argument("--std", default="255,255,255")
+    parser.add_argument("--quantized-algorithm", default="mmse",
+                        choices=("normal", "mmse", "kl_divergence"),
+                        help="INT8 量化算法。默认 mmse：normal 会把 yolo11n "
+                             "分类头的 outlier 权重压成分数全 0。")
     args = parser.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
@@ -277,7 +288,8 @@ def main():
     for dtype in [d.strip() for d in args.dtypes.split(",") if d.strip()]:
         out_path = os.path.join(args.out_dir, "%s_%s.rknn" % (args.name, dtype))
         ok = convert(onnx_path, out_path, args.platform, calib_txt,
-                     quantize=(dtype == "i8"), mean=mean, std=std)
+                     quantize=(dtype == "i8"), mean=mean, std=std,
+                     algo=args.quantized_algorithm)
         size = os.path.getsize(out_path) if ok and os.path.exists(out_path) else 0
         entry = {"ok": ok, "path": out_path, "bytes": size}
         if ok:
