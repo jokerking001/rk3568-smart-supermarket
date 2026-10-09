@@ -16,6 +16,8 @@
 //               阈值是 1500ms，断供就会一直判过期。
 //      · RFID   POST http://<RK>:8094/...
 //      · 扫码枪 POST http://<RK>:8095/...
+//      · 温湿度 POST http://<RK>:8094/api/env/report   DHT22 读数
+//               （60 秒一条。传感器在从机上，大屏在 RK 上，中间要这条）
 //
 //    接收（RK → 从机），本机开一个极简 HTTP 服务在 SLAVE_HTTP_PORT：
 //      · POST /api/tts      body: text=<要播报的文本>  → 喇叭播报
@@ -45,6 +47,10 @@ bool SlaveLink_PostRfid(const String& uid);
 
 // USB 扫码枪条码。
 bool SlaveLink_PostBarcode(const String& code);
+
+// 温湿度（DHT22）。temperature 为摄氏度，humidity 为百分比。
+// 由 Plus.cpp 的 DHT22_HandleLoop() 每 60 秒调一次。
+bool SlaveLink_PostEnv(float temperature, float humidity);
 
 // ---------------- 统计 ----------------
 void SlaveLink_PrintStats();

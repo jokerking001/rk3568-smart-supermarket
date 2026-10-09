@@ -79,6 +79,13 @@ class Bench(object):
         self.dir = tempfile.mkdtemp(prefix="store-ext-test-")
         os.environ["STORE_ADMIN_PASSWORD"] = "admin123"
         os.environ.pop("STORE_DEVICE_TOKEN", None)
+        # [16] 里有「没配 key 时是规则模式」的断言，而 `DASHSCOPE_API_KEY`
+        # 是**调用时**读的（store_ext.py 里 os.environ.get）。如果宿主机/CI
+        # 环境里正好有这个变量，断言就会变成 "llm" 而失败 —— 测试结果依赖
+        # 外部环境，是假失败。这里显式清掉，让「无 key」这个前提确定成立。
+        # （2026-10-09 在带 key 的沙箱里实测到过这个假失败。）
+        for key in ("DASHSCOPE_API_KEY", "DASHSCOPE_KEY", "QWEN_API_KEY"):
+            os.environ.pop(key, None)
         self.store = ss.Store(os.path.join(self.dir, "s.db"),
                               os.path.join(self.dir, "receipts"))
         self.ext = sx.StoreExt(self.store)
@@ -920,6 +927,50 @@ def test_order_history_and_refund(bench):
                by_id[0]["detail"] if by_id else "没记录")
 
 
+def test_env_report(bench):
+    """从机（ESP32-S3）温湿度上报 → 大屏能读到。
+
+    为什么单独测：DHT22 在从机上、大屏在 RK 上，中间这条上报路径是
+    2026-10-09 新加的（`POST /api/env/report`，见 h_env_report）。原工程
+    里 DHT22 由主控自己读、读完只拼 AI 提示词，**不落库也不对外** ——
+    所以 `/api/env` 一直 available:false，大屏永远显示「传感器未接」。
+    这是个**静默的空白**（页面不报错，只是少一块信息），没测试就一直没人发现。
+    """
+    print("[22] 从机温湿度上报 → /api/env")
+    reply = bench.post("/api/env/report",
+                       {"temperature": 24.3, "humidity": 55.1})
+    body = json_of(reply)
+    check("上报 200", reply.status, 200)
+    check("上报 ok", body["ok"], True)
+
+    body = json_of(bench.get("/api/env"))
+    check("上报后 available=True", body["available"], True)
+    check("温度读回", body["temperature"], 24.3)
+    check("湿度读回", body["humidity"], 55.1)
+    check_true("带 age_seconds（大屏判新鲜度用）",
+               isinstance(body.get("age_seconds"), (int, float)),
+               body.get("age_seconds"))
+    check_true("age 很小（刚报的）", (body.get("age_seconds") or 999) < 60,
+               body.get("age_seconds"))
+
+    # 缺字段 / 超量程必须 400 —— 存进去只会让大屏显示一个假值
+    check("缺 humidity 400",
+          bench.post("/api/env/report", {"temperature": 24.3}).status, 400)
+    check("温度超量程 400",
+          bench.post("/api/env/report",
+                     {"temperature": 999, "humidity": 50}).status, 400)
+    check("湿度超量程 400",
+          bench.post("/api/env/report",
+                     {"temperature": 24, "humidity": 150}).status, 400)
+    check("非数字 400",
+          bench.post("/api/env/report",
+                     {"temperature": "abc", "humidity": 50}).status, 400)
+
+    # 坏数据被拒后，之前那条好数据不能被冲掉
+    body = json_of(bench.get("/api/env"))
+    check("坏数据没冲掉好数据", body["temperature"], 24.3)
+
+
 def main():
     bench = Bench()
     try:
@@ -944,6 +995,7 @@ def main():
         test_qr_endpoint(bench)
         test_implied_confirm(bench)
         test_order_history_and_refund(bench)
+        test_env_report(bench)
     finally:
         bench.close()
 

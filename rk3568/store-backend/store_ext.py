@@ -210,6 +210,18 @@ CREATE TABLE IF NOT EXISTS idem_keys (
     created_at  TEXT NOT NULL
 );
 
+-- 温湿度采样。传感器（DHT22）在 ESP32-S3 从机上，从机每 60 秒 POST
+-- 一次，这里只存「最近若干条」供大屏取最新值 + 算新鲜度。
+-- 为什么要存历史而不是只存一个当前值：大屏要判断「数据是不是过期了」
+-- （从机掉线后不能继续拿旧值当实时值显示），有 created_at 才判得了。
+CREATE TABLE IF NOT EXISTS env_samples (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    temperature REAL,
+    humidity    REAL,
+    source      TEXT,
+    created_at  TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_auth_expires  ON auth_sessions(expires_at);
 CREATE INDEX IF NOT EXISTS idx_members_card  ON members(card_no);
 CREATE INDEX IF NOT EXISTS idx_price_status  ON price_proposals(status);
@@ -217,6 +229,7 @@ CREATE INDEX IF NOT EXISTS idx_restock_status ON restock_proposals(status);
 CREATE INDEX IF NOT EXISTS idx_print_status  ON print_jobs(status, id);
 CREATE INDEX IF NOT EXISTS idx_tickets_status ON service_tickets(status);
 CREATE INDEX IF NOT EXISTS idx_analytics_time ON analytics_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_env_time      ON env_samples(created_at);
 """
 
 
@@ -226,6 +239,21 @@ class ConfirmRequired(Exception):
 
 def now_iso():
     return time.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _seconds_since(iso_text):
+    """`iso_text` 距现在多少秒。解析不了返回 None（不猜）。"""
+    try:
+        then = time.mktime(time.strptime(iso_text, "%Y-%m-%d %H:%M:%S"))
+    except (TypeError, ValueError):
+        return None
+    return max(0.0, time.time() - then)
+
+
+# 温湿度保留条数：从机 60 秒一条，2000 条约一天半，够大屏看趋势又不占盘。
+ENV_KEEP = 2000
+# 新鲜度阈值：从机 60 秒上报一次，容忍丢 2 次。超过就当掉线，别拿旧值充实时值。
+ENV_STALE_SECONDS = 180
 
 
 def future_iso(seconds):
@@ -824,6 +852,72 @@ class StoreExt(object):
                     (row["uid"],)).fetchone()
                 row["member"] = dict(member) if member else None
             return {"ok": True, "count": len(rows), "events": rows}
+
+    # ------------------------------------------------------ 温湿度（从机上报）
+    def report_env(self, temperature, humidity, source="esp32s3-dht22"):
+        """从机（ESP32-S3）上报 DHT22 读数。
+
+        原工程里 DHT22 是主控自己读的（`firmware/store-controller/Plus.cpp`），
+        读完只用来拼 AI 提示词，**不落库、不对外**。降级成从机后传感器还在
+        ESP32-S3 上，而要看这个数的是 RK3568 的大屏 —— 中间缺一条上报路径，
+        所以 `/api/env` 一直是 `available:false`。这个方法和 `report_rfid`
+        是同一类补丁。
+
+        为什么不覆盖式只留一行：大屏要判「数据过期没有」（从机掉线后不能
+        继续把旧值当实时值显示），所以留 created_at 历史，取最新一条算 age。
+
+        保留上限：只留最近 `ENV_KEEP` 条。板子根分区只有 1.4 GB 可用，
+        从机 60 秒一条、一天 1440 条，不清理几个月就能把盘写满。
+        """
+        try:
+            t = float(temperature)
+            h = float(humidity)
+        except (TypeError, ValueError):
+            return False, "温度/湿度必须是数字", None
+        # DHT22 的物理量程：-40~80℃ / 0~100%RH。越界说明线接错或读数坏了，
+        # 存进去只会让大屏显示一个假值。
+        if not (-40.0 <= t <= 80.0):
+            return False, "温度超量程：%s" % temperature, None
+        if not (0.0 <= h <= 100.0):
+            return False, "湿度超量程：%s" % humidity, None
+
+        with self.lock:
+            with self.conn:
+                self.conn.execute(
+                    "INSERT INTO env_samples(temperature, humidity, source, created_at) "
+                    "VALUES(?,?,?,?)", (t, h, source, now_iso()))
+                self.conn.execute(
+                    "DELETE FROM env_samples WHERE id NOT IN "
+                    "(SELECT id FROM env_samples ORDER BY id DESC LIMIT %d)" % ENV_KEEP)
+        return True, "已记录温湿度 %.1f℃ / %.1f%%" % (t, h), \
+            {"temperature": t, "humidity": h}
+
+    def latest_env(self, max_age_seconds=ENV_STALE_SECONDS):
+        """最新温湿度 + 新鲜度。
+
+        `available` 只在「有数据**且**没过期」时为 True —— 从机掉线后大屏
+        会退回「传感器未接」，而不是一直显示一个不动的旧读数。
+        """
+        with self.lock:
+            row = self.conn.execute(
+                "SELECT * FROM env_samples ORDER BY id DESC LIMIT 1").fetchone()
+        if not row:
+            return {"ok": True, "available": False, "temperature": None,
+                    "humidity": None, "age_seconds": None,
+                    "message": "还没有收到从机的温湿度上报（DHT22 在 ESP32-S3 上）"}
+        age = _seconds_since(row["created_at"])
+        fresh = age is not None and age <= max_age_seconds
+        return {
+            "ok": True,
+            "available": bool(fresh),
+            "temperature": row["temperature"] if fresh else None,
+            "humidity": row["humidity"] if fresh else None,
+            "age_seconds": None if age is None else round(age, 1),
+            "source": row["source"],
+            "updated_at": row["created_at"],
+            "message": "" if fresh else
+                       "温湿度上报已过期（最后一条 %.0f 秒前），从机可能掉线" % (age or 0),
+        }
 
     # ------------------------------------------------------ 提案 → 审核 → 应用
     def _propose(self, table, payload, kind):

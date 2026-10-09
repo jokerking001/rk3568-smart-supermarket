@@ -16,6 +16,7 @@ static WiFiServer slaveServer(SLAVE_HTTP_PORT);
 static unsigned long statScaleOk = 0, statScaleFail = 0;
 static unsigned long statRfidOk = 0, statRfidFail = 0;
 static unsigned long statBarcodeOk = 0, statBarcodeFail = 0;
+static unsigned long statEnvOk = 0, statEnvFail = 0;
 static unsigned long statTtsServed = 0, statTareServed = 0;
 static unsigned long consecScaleFail = 0;
 static unsigned long lastScalePost = 0;
@@ -237,6 +238,25 @@ bool SlaveLink_PostBarcode(const String& code)
   return ok;
 }
 
+bool SlaveLink_PostEnv(float temperature, float humidity)
+{
+  // ⚠️ 打的是 `/api/env/report`，**不是** `/api/env` ——
+  // 后者是给大屏读的 GET（返回最新值 + 新鲜度），从机是事件**生产者**，
+  // 方向相反。写错的表现和当初 RFID 一样：RK 侧 404，从机只累加失败
+  // 计数、不报错，属于最难发现的那类问题。
+  //
+  // 数值用 String(x, 1) 保留一位小数：DHT22 本身精度就到 0.1℃ / 0.1%RH，
+  // 多发位数没有意义，还多占几个字节。
+  String body = "temperature=" + String(temperature, 1)
+              + "&humidity=" + String(humidity, 1)
+              + "&source=esp32s3-dht22";
+  bool ok = httpPostForm(rkUrl(RK_STORE_PORT, RK_PATH_ENV_REPORT), body);
+  if (ok) statEnvOk++; else statEnvFail++;
+  Serial.printf("[slave] 温湿度上报 %.1fC/%.1f%%: %s\n",
+                temperature, humidity, ok ? "ok" : "fail");
+  return ok;
+}
+
 // ------------------------------------------------------------
 //  主循环
 // ------------------------------------------------------------
@@ -286,9 +306,11 @@ void SlaveLink_Init()
 void SlaveLink_PrintStats()
 {
   Serial.printf("[slave] 统计：称重 ok=%lu fail=%lu | RFID ok=%lu fail=%lu"
-                " | 条码 ok=%lu fail=%lu | TTS=%lu 去皮=%lu\n",
+                " | 条码 ok=%lu fail=%lu | 温湿度 ok=%lu fail=%lu"
+                " | TTS=%lu 去皮=%lu\n",
                 statScaleOk, statScaleFail,
                 statRfidOk, statRfidFail,
                 statBarcodeOk, statBarcodeFail,
+                statEnvOk, statEnvFail,
                 statTtsServed, statTareServed);
 }

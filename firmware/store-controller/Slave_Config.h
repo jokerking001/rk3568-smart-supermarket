@@ -79,9 +79,14 @@
 //  · 条码 → 8095 /api/scanner/inject   ⚠️ **不是** /api/scan：
 //        /api/scan 是 8094 收银后端的端点。8095 收到 inject 后会自己
 //        带上 session / add_to_cart 转发给 8094，那条链已经写好了。
+//  · 温湿度 → 8094 /api/env/report     ⚠️ **不是** /api/env：
+//        后者是给大屏读的 GET（返回最新值 + 新鲜度）。从机是生产者，
+//        要打 /api/env/report（h_env_report）。原工程 DHT22 读完只拼
+//        AI 提示词、不对外，所以这条路是新增的。
 #define RK_PATH_SCALE_SAMPLE   "/api/scale/sample"
 #define RK_PATH_RFID_REPORT    "/api/rfid/report"
 #define RK_PATH_SCANNER_INJECT "/api/scanner/inject"
+#define RK_PATH_ENV_REPORT     "/api/env/report"
 
 // 条码来源标记。**用原工程的 "usb-host"**，这样 8094 的 scan_events
 // 和页面上显示的 source 与迁移前逐字一致，排障时不会因为换个名字
@@ -104,6 +109,13 @@
 // 再慢就会一直被判过期，秤等于没接。
 // 对应 HX711_Scale.cpp 里的 scaleInterval，两者保持一致。
 #define SLAVE_SCALE_INTERVAL_MS   500
+
+// 温湿度上报间隔。DHT22 本身最短采样周期约 2 秒（数据手册要求 ≥1s，
+// 保守取 2s），但大屏根本不需要那么密 —— 室温不会秒级跳变。
+// 60 秒一条足够，也顺带把 RK 侧 env_samples 表的增长速度压到
+// 一天 1440 条。**必须小于 RK 侧的 ENV_STALE_SECONDS（180s）**，
+// 否则大屏会一直判「上报已过期」。
+#define SLAVE_ENV_INTERVAL_MS     60000
 
 // 单次 HTTP 超时。设短一点：主循环里还有 I2S 录音和 TTS 在跑，
 // 网络抖动时阻塞太久会爆音。

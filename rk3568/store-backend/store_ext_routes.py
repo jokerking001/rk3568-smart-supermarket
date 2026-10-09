@@ -1081,13 +1081,34 @@ class ExtRouter(object):
         return self._proxy("voice", req)
 
     def h_env(self, req):
-        """大屏用的温湿度。DHT22 在 ESP32-S3 从机上，主控这边没有传感器。"""
-        return json_reply({
-            "ok": True, "available": False,
-            "temperature": None, "humidity": None,
-            "message": "温湿度由 ESP32-S3 从机提供（firmware/peripheral-slave），"
-                       "当前主控直连传感器未接",
-        })
+        """大屏用的温湿度。
+
+        DHT22 在 ESP32-S3 从机上，RK3568 这边没有传感器 —— 数据靠从机
+        `POST /api/env/report` 报上来（见 `h_env_report`）。
+        没收到 / 收到但过期时 `available=False`，大屏会显示「温湿度传感器未接」，
+        不会拿旧读数冒充实时值。
+        """
+        return json_reply(self.ext.latest_env())
+
+    def h_env_report(self, req):
+        """**从机（ESP32-S3）温湿度上报**入口。
+
+        和 `h_rfid_report` 是同一类补丁：原工程里 DHT22 由主控自己读、
+        读完只拼 AI 提示词，既不入库也不对外；降级成从机后传感器还在
+        ESP32-S3 上，而要看数的是 RK3568 的大屏 —— 中间缺一条路。
+
+        权限 `open`：从机没有会话；温湿度既不是机密也无副作用，
+        且大屏本身就是公开读的（`GET /api/env` 也是 open）。
+        """
+        # 从机用 form 编码（`temperature=24.3&humidity=55.1`），
+        # 页面/调试用 JSON 也行 —— req.arg() 两者都认。
+        t = req.arg("temperature")
+        h = req.arg("humidity")
+        if t is None or h is None:
+            return json_reply({"ok": False,
+                               "message": "缺少 temperature / humidity"}, 400)
+        source = (req.arg("source") or "esp32s3-dht22").strip() or "esp32s3-dht22"
+        return triple_to_reply(self.ext.report_env(t, h, source=source))
 
     def _proxy(self, key, req, note=None):
         url = self.upstreams.get(key)
@@ -1339,6 +1360,8 @@ ROUTES = (
     ("GET", "/api/weight", "weight", "open"),
     ("GET", "/api/voice-subtitles", "voice_subtitles", "open"),
     ("GET", "/api/env", "env", "open"),
+    # 从机（ESP32-S3）上报 DHT22 读数。原工程没有这条路 —— 见 h_env_report。
+    ("POST", "/api/env/report", "env_report", "open"),
 
     # ---- 扫码枪 / 订单
     ("GET", "/api/scan-gun-result", "scan_gun_result", "read"),
