@@ -1,3 +1,17 @@
+// ============================================================
+//  ⚠️ 本文件属于**原主控形态**，从机模式（SLAVE_MODE=1）下整段不编译。
+// ============================================================
+//  RK3568 接管主控后，这个模块的职责已经搬到板端：
+//      81 个 HTTP 端点、网页渲染、商品/订单/会员/管理接口 → 8094 收银后端
+//  保留代码是为了 SLAVE_MODE=0 时能原样回退，不是从机固件的一部分。
+//
+//  为什么用 #if 而不是把文件挪走：Arduino 编译 sketch 目录下所有 .cpp，
+//  挪走会让 SLAVE_MODE=0 也编不过；加保护则两套形态共存、互不干扰。
+// ============================================================
+#include "Slave_Config.h"
+
+#if !SLAVE_MODE
+
 #include "WebServer.h"
 #include "secrets.h"        // 私密配置（密钥/地址），不进版本库
 #include <WiFi.h>
@@ -4442,3 +4456,5 @@ document.addEventListener('touchstart',function(){window.location.href='/';});
   server.begin();
   Serial.println("Web服务器已启动！");
 }
+
+#endif  // !SLAVE_MODE

@@ -6,14 +6,21 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
-#include "AI_Test.h"
 #include <Wire.h>
-#include "HC_SR04.h"
-#include "Mode_LowPower.h"
-#include "WebServer.h"
 
 #include <time.h>
+// Edge Impulse 唤醒词模型。**从机也保留** —— 唤醒是本地能力，
+// 不依赖 RK3568，断网时照样能喊醒。
 #include <project_1062783_inferencing.h>
+
+// ---- 以下四个属于**原主控形态**，从机模式（SLAVE_MODE=1）下不编译 ----
+#include "Slave_Config.h"
+#if !SLAVE_MODE
+#include "AI_Test.h"        // 语音问答直连 DashScope → 已移交 RK3568
+#include "HC_SR04.h"        // 超声波人体感应 → 已被 RK 侧雷达 8091 取代
+#include "Mode_LowPower.h"  // 低功耗 → 板子常供电，已废弃
+#include "WebServer.h"      // 81 端点 + global_voice_* 的定义
+#endif
 
 #define XL9555_ADDR 0x20
 #define I2C_SDA 10
@@ -22,9 +29,18 @@
 // 【新增】：定义全局语音队列
 String pendingVoiceTask = "";
 
+// global_voice_* 原本定义在 WebServer.cpp（主控模块）里。
+// 从机模式不编译那个文件，所以必须在这里补一份定义，否则链接失败：
+//   undefined reference to `global_voice_q'
+#if SLAVE_MODE
+String global_voice_q = "";
+String global_voice_a = "";
+bool global_voice_show = false;
+#else
 extern String global_voice_q;
 extern String global_voice_a;
 extern bool global_voice_show;
+#endif
 
 static bool notify_miniclaw_human_service();
 
@@ -475,8 +491,15 @@ void Voice_PlayRecording()
       Serial.println(resultText);
       Serial.println("==============================\n");
 
+#if SLAVE_MODE
+      // 从机模式下「AI 问答」已移交 RK3568（那是主控职责），本机不再直连 DashScope。
+      // TODO：RK 侧问答端点就绪后，改成 POST 给 RK 再播报它的返回。
+      Serial.println("[从机] AI 问答已移交 RK3568，本机降级为固定话术");
+      String aiAnswer = "这个问题需要联网查一下，请稍等哦。";
+#else
       Serial.println("正在向千问大模型思考回答...");
       String aiAnswer = AI_ProcessQuestion(resultText); 
+#endif
       
       Serial.println("\n========== 导购员回答 ==========");
       Serial.println(aiAnswer);
@@ -613,7 +636,14 @@ static bool notify_miniclaw_human_service()
     http.begin(client, url);
     http.addHeader("Content-Type", "application/json");
 
+#if SLAVE_MODE
+    // 从机不编译 WebServer.cpp，本地生成一个够用的工单号即可
+    // （MimiClaw 只拿它做去重，格式不重要）。
+    static unsigned long s_req_seq = 0;
+    String requestId = "HS-" + String(millis()) + "-" + String(++s_req_seq);
+#else
     String requestId = WebServer_CreateHumanServiceRequest();
+#endif
     if (requestId.length() == 0) {
         Serial.println("[人工服务] 已有活动工单，跳过重复通知");
         return false;
@@ -701,10 +731,22 @@ void Voice_WakeupLoop()
             // 【唤醒判断 1：导购员】
             if (strcmp(result.classification[ix].label, "导购员") == 0 && result.classification[ix].value > 0.75) 
             {
+#if SLAVE_MODE
+              // 从机没有超声波模块（人体感应已由 RK3568 侧的雷达 8091 承担），
+              // 唤醒只靠语音，不再要求「前方有人」这一重条件。
+              bool isPersonNear = true;
+#else
               bool isPersonNear = HC_SR04_IsPersonNear(); 
+#endif
               
-              if (isPersonNear) { 
+              if (isPersonNear) {
+#if SLAVE_MODE
+                // 从机没有超声波，也就没有「距离」这个量，日志里不能出现 DETECT_DISTANCE
+                // （该宏由 HC_SR04.h 提供，从机模式下根本不 include）。
+                Serial.printf("\n🎉 【语音唤醒成功】精准捕捉: %s\n", result.classification[ix].label);
+#else
                 Serial.printf("\n🎉 【多模态唤醒成功】检测到前方有人(距离<%dcm)，且精准捕捉: %s\n", DETECT_DISTANCE, result.classification[ix].label);
+#endif
                 isTriggered = true;
                 break;
               }
@@ -733,11 +775,17 @@ void Voice_WakeupLoop()
              isVoiceTriggered = false; 
              continuous_noise_count = 0; 
 
+#if SLAVE_MODE
+             // 从机常供电，没有低功耗模式（Mode_LowPower 已废弃）。
+             led_low_power_mode(false);
+             pendingVoiceTask = "您好呀，有什么能够帮到您呢？";
+#else
              if (LowPower_GetMode() != MODE_NORMAL) {
                  LowPower_SetMode(MODE_NORMAL); 
                  led_low_power_mode(false);     
                  pendingVoiceTask = "您好呀，有什么能够帮到您呢？";
              }
+#endif
              return; 
           } 
           // ================= 触发进入低功耗（环境无声待机） =================
@@ -746,11 +794,14 @@ void Voice_WakeupLoop()
                  continuous_noise_count++;
                  
                  if (continuous_noise_count >= AUTO_SLEEP_NOISE_SECONDS) {
+#if !SLAVE_MODE
                      if (LowPower_GetMode() != MODE_MODEM_SLEEP) {
                          Serial.println("\n💤 【自动休眠触发】连续 10 秒无人说话，恢复低功耗待机！\n");
                          LowPower_SetMode(MODE_MODEM_SLEEP); 
                          led_low_power_mode(true);           
                      }
+#endif
+                     // 从机模式：常供电，不做自动休眠
                      continuous_noise_count = 0;         
                  }
              } else {
@@ -774,6 +825,9 @@ int get_pure_test_audio(size_t offset, size_t length, float *out_ptr) {
   return 0;
 }
 
+#if !SLAVE_MODE
+// 主控专属的「纯净模型测试」工具函数（从机模式不编译）。
+// 声明留在 Voice_Interaction.h 里不影响 —— 没有调用点就不会链接。
 void Test_Pure_AI_Model() {
   if (key_isPressed()) {
     if (!isPureTesting) {
@@ -883,6 +937,9 @@ void Test_Pure_AI_Model() {
   }
 }
 
+#endif  // !SLAVE_MODE  （Test_Pure_AI_Model 结束）
+
+// 纯 I2S 原始数据转发（调试用，两套形态都保留；目前没有调用点）
 void Tool_Data_Forwarder() {
   i2s_driver_uninstall(I2S_NUM_0);
   delay(20); 

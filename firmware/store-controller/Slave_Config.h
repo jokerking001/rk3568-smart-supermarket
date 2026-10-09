@@ -1,6 +1,24 @@
 #ifndef SLAVE_CONFIG_H
 #define SLAVE_CONFIG_H
 
+// ============================================================
+//  角色开关 —— ⚠️ 必须定义在**头文件**里，不能放在 .ino 里
+// ============================================================
+//
+//  为什么：Arduino 会把 sketch 目录下**每一个 .cpp 单独编译**，
+//  .ino 里的 `#define` 对它们**不可见**。所以如果把 SLAVE_MODE
+//  定义在 Work7_20.ino 里，主控模块（WebServer/AI_Test/Product_Data/
+//  HC_SR04/Mode_LowPower/Inventory_Monitor）的 .cpp 会**照样被编进
+//  从机固件**——「裁剪主控模块」静默失效，产物里塞着 81 个 HTTP 端点。
+//  这个坑是 2026-10-09 实际编译时才暴露出来的。
+//
+//  用法：改这里，或在编译命令里 `-DSLAVE_MODE=0` 覆盖。
+//    1 = 外设从机（当前形态，RK3568 主控）
+//    0 = 原主控形态（保留，便于对照/回退）
+#ifndef SLAVE_MODE
+#define SLAVE_MODE 1
+#endif
+
 // 先把私密配置引进来：现场要在这里覆盖 RK_HOST。
 // 用 __has_include 是必要的 —— secrets.h 不进版本库，
 // 别人 clone 下来只有 secrets.h.example，直接 #include 会编译不过。

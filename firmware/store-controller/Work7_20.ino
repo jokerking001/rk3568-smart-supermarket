@@ -21,7 +21,10 @@
 //         （本实现称重默认走 HTTP，理由见 Slave_Config.h 里的说明）
 // ============================================================
 
-#define SLAVE_MODE 1
+// ⚠️ 角色开关 SLAVE_MODE 定义在 Slave_Config.h 里，**不能**写在 .ino 里。
+// 原因：Arduino 单独编译 sketch 目录下每个 .cpp，.ino 里的 #define 它们看不到，
+// 主控模块就会照样被编进从机固件（「裁剪」静默失效）。详见 Slave_Config.h 顶部。
+#include "Slave_Config.h"
 
 // ---- 两种角色都要用的（实时外设）----
 #include "WIFI_Test.h"

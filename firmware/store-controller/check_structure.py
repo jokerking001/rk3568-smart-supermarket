@@ -9,6 +9,19 @@
   3. `#include` 的本工程头文件是否真实存在
   4. `SlaveLink_*` 声明与定义一一对应
   5. 从机 setup/loop 调用的外部函数是否都在头文件里声明过
+  6. ⚠️ `SLAVE_MODE` 必须定义在 **.h** 里、**不能**在 .ino 里
+  7. ⚠️ 主控专属符号不能在「SLAVE_MODE=1 生效区间」被引用
+
+第 6、7 条是 **2026-10-09 第一次真实编译时踩出来的坑**，必须固化成断言：
+
+  * 第 6 条 —— Arduino 会**单独编译 sketch 目录下的每一个 .cpp**，
+    `.ino` 里的 `#define` 对它们**不可见**。所以 `SLAVE_MODE` 一旦写在
+    `.ino` 里，「裁剪主控模块」就会**静默失效**：从机固件里照样塞着
+    `WebServer.cpp` 的 81 个 HTTP 端点，编译还不报错。必须放在头文件里。
+  * 第 7 条 —— 光有第 6 条还不够。符号即使能被看到，只要某个 `.cpp`
+    在从机区间里引用了主控符号（例如 `HC_SR04.h` 的 `DETECT_DISTANCE`、
+    `WebServer.cpp` 的 `global_voice_*`），链接/编译照样炸。
+    这里用迷你预处理模拟 `SLAVE_MODE=1`，把这类引用提前揪出来。
 
 **真正的编译必须在 Arduino IDE / arduino-cli 里做。** 这个脚本只是让
 「改完不知道对不对」有个最底线的检查 —— 之前它确实抓到过问题。
@@ -23,9 +36,33 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-FILES = ["Slave_Config.h", "Slave_Link.h", "Slave_Link.cpp",
-         "Work7_20.ino", "WIFI_Test.cpp", "WIFI_Test.h",
-         "secrets.h.example"]
+# 参与自检的源文件：目录下所有 .ino / .cpp / .h（排除编译产物）
+SRC_EXT = (".ino", ".cpp", ".h")
+FILES = sorted(f for f in os.listdir(HERE)
+               if f.lower().endswith(SRC_EXT)) if os.path.isdir(HERE) else []
+
+# 主控形态专属模块（`#if !SLAVE_MODE` 包住的那 6 个 .cpp）
+MASTER_CPP = ["WebServer.cpp", "AI_Test.cpp", "Product_Data.cpp",
+              "HC_SR04.cpp", "Mode_LowPower.cpp", "Inventory_Monitor.cpp"]
+
+# 主控专属符号（定义在上面 6 个模块里；从机区间不得引用）
+MASTER_SYMBOLS = [
+    "WebServer_Init", "WebServer_SyncToPi", "WebServer_SubmitScanGunCode",
+    "WebServer_CreateHumanServiceRequest",
+    "global_voice_q", "global_voice_a", "global_voice_show",
+    "AI_Init", "AI_Ask", "AI_Analyze", "AI_ProcessQuestion", "AI_HandleLoop",
+    "Product_Data_Init", "Product_Save", "Product_Data_ToText",
+    "DailyStats_Init", "DailyStats_Reset", "DailyStats_AddSale",
+    "DailyStats_ToJson", "Product_FindByQR", "Product_DeductStock",
+    "Product_AddSold", "Product_CreateOrder", "Product_ConfirmOrder",
+    "Product_SetPending", "Product_IsPending", "Product_IsPaid",
+    "Product_RefundOrder", "Product_OrderHistoryToJson",
+    "HC_SR04_Init", "HC_SR04_GetDistance", "HC_SR04_IsPersonNear",
+    "HC_SR04_HandleLoop", "DETECT_DISTANCE",
+    "LowPower_Init", "LowPower_SetMode", "LowPower_GetMode",
+    "LowPower_PrintStatus", "MODE_NORMAL", "MODE_MODEM_SLEEP",
+    "InventoryMonitor_Init", "InventoryMonitor_HandleLoop",
+]
 
 THIRD_PARTY = {
     "Arduino.h", "WiFi.h", "HTTPClient.h", "ArduinoJson.h", "DHT.h",
@@ -72,6 +109,103 @@ def pp_balance(path):
         elif re.match(r"#\s*endif\b", t):
             closes += 1
     return opens, closes
+
+
+def _strip_comments_keep_lines(text):
+    """去掉注释，但保留行数（用于定位行号）。"""
+    text = re.sub(r"/\*.*?\*/", lambda m: "\n" * m.group(0).count("\n"), text,
+                  flags=re.S)
+    out = []
+    for line in text.split("\n"):
+        i = line.find("//")
+        out.append(line[:i] if i >= 0 else line)
+    return out
+
+
+def _eval_cond(expr):
+    """True/False/None；None = 与 SLAVE_MODE 无关（未知）。"""
+    e = expr.strip().replace(" ", "")
+    if e in ("SLAVE_MODE", "SLAVE_MODE==1", "SLAVE_MODE>0"):
+        return True
+    if e in ("!SLAVE_MODE", "SLAVE_MODE==0", "SLAVE_MODE<1"):
+        return False
+    return None
+
+
+def scan_slave_active_refs(path):
+    """迷你预处理：找出 SLAVE_MODE=1 时引用了主控符号、但**自身没有从机侧定义**的行。
+
+    判定思路（避免误报）：
+      * `.h` 里的纯声明永远无害（从机模式下那些头文件根本不会被 include），跳过。
+      * 符号只要在从机生效区间内**有定义**（如 `global_voice_q` 在
+        Voice_Interaction.cpp 的 `#if SLAVE_MODE` 分支里补了定义），就算 OK。
+      * 只有「在从机区间被引用、且整个从机区间都找不到定义」的符号才是真问题 ——
+        那正是 `DETECT_DISTANCE` 那次失败的特征。
+
+    返回 [(行号, 符号, 原文)]。
+    """
+    if path.lower().endswith(".h"):
+        return []                     # 头文件只放声明，单独看没有意义
+    try:
+        src = open(path, encoding="utf-8", errors="replace").read()
+    except OSError:
+        return []
+    lines = _strip_comments_keep_lines(src)
+    raw = src.split("\n")
+    stack = []
+    slave_lines = []                  # [(行号, 文本)] 从机生效区间
+
+    def active():
+        return all(v is not False for v, _ in stack)
+
+    for idx, line in enumerate(lines, 1):
+        m = re.match(r"^\s*#\s*(if|ifdef|ifndef|elif|else|endif)\b(.*)$", line)
+        if m:
+            kind, rest = m.group(1), m.group(2)
+            if kind in ("if", "ifdef", "ifndef"):
+                v = _eval_cond(rest)
+                if kind == "ifndef" and v is not None:
+                    v = not v
+                stack.append((v, False))
+            elif kind == "elif" and stack:
+                v, _ = stack[-1]
+                if v is None:
+                    stack[-1] = (_eval_cond(rest), True)
+            elif kind == "else" and stack:
+                v, _ = stack[-1]
+                stack[-1] = ((not v, True) if v is not None else (True, True))
+            elif kind == "endif" and stack:
+                stack.pop()
+            continue
+        if active():
+            # 匹配用**去注释后**的文本，展示也用同一份（否则注释里的符号名会被误报）
+            slave_lines.append((idx, lines[idx - 1] if idx - 1 < len(lines) else line))
+
+    # 第一遍：从机区间内哪些主控符号「有定义」
+    defined = set()
+    for _, txt in slave_lines:
+        t = txt.strip()
+        if not t or t.startswith("#"):
+            continue
+        for sym in MASTER_SYMBOLS:
+            if sym not in txt:
+                continue
+            # 定义特征：不是 extern 声明，且后面跟 `=`（变量）或 `(`（函数）
+            if re.search(r"^\s*extern\b", t):
+                continue
+            if re.search(r"\b%s\b\s*(=|\()" % re.escape(sym), t):
+                defined.add(sym)
+
+    # 第二遍：从机区间内引用、但没有从机侧定义的
+    hits = []
+    for ln, txt in slave_lines:
+        t = txt.strip()
+        if not t or t.startswith("#"):
+            continue
+        for sym in MASTER_SYMBOLS:
+            if sym in t and sym not in defined:
+                hits.append((ln, sym, t[:100]))
+    return hits
 
 
 def main():
@@ -164,6 +298,65 @@ def main():
             undecl.append(c)
         print("  %-28s %s" % (c, "OK" if ok else "!! 未声明"))
     bad += len(undecl)
+
+    print()
+    print("=== 6. SLAVE_MODE 的定义位置（必须在 .h，不能在 .ino） ===")
+    ino_defs = []
+    hdr_defs = []
+    for f in FILES:
+        src = open(f, encoding="utf-8").read()
+        if re.search(r"^\s*#\s*define\s+SLAVE_MODE\b", src, flags=re.M):
+            if f.lower().endswith(".ino"):
+                ino_defs.append(f)
+            elif f.lower().endswith(".h"):
+                hdr_defs.append(f)
+            else:
+                ino_defs.append(f)   # .cpp 里定义同样不行（可见性只对后续 TU 生效）
+    if ino_defs:
+        print("  !! SLAVE_MODE 被定义在 %s —— 其它 .cpp 看不到它，"
+              "裁剪会静默失效" % ", ".join(ino_defs))
+        bad += 1
+    else:
+        print("  OK：没有 .ino/.cpp 定义 SLAVE_MODE")
+    if hdr_defs:
+        print("  OK：头文件里的定义 -> %s" % ", ".join(hdr_defs))
+    else:
+        print("  !! 没有任何头文件定义 SLAVE_MODE")
+        bad += 1
+    # .ino 必须 include 那个头文件，否则自己也拿不到开关
+    ino_src = open("Work7_20.ino", encoding="utf-8").read()
+    if re.search(r'#\s*include\s+"Slave_Config\.h"', ino_src):
+        print("  OK：Work7_20.ino 已 include \"Slave_Config.h\"")
+    else:
+        print("  !! Work7_20.ino 没有 include \"Slave_Config.h\"")
+        bad += 1
+    # 6 个主控 .cpp 必须逐个加整文件保护
+    missing_guard = []
+    for f in MASTER_CPP:
+        if not os.path.isfile(f):
+            continue
+        src = open(f, encoding="utf-8").read()
+        if not re.search(r"^\s*#\s*if\s+!\s*SLAVE_MODE\b", src, flags=re.M):
+            missing_guard.append(f)
+    if missing_guard:
+        print("  !! 缺 `#if !SLAVE_MODE` 整文件保护：%s"
+              % ", ".join(missing_guard))
+        bad += len(missing_guard)
+    else:
+        print("  OK：6 个主控 .cpp 都有整文件保护")
+
+    print()
+    print("=== 7. 主控专属符号在 SLAVE_MODE=1 生效区间是否被引用 ===")
+    hits = []
+    for f in FILES:
+        for ln, sym, txt in scan_slave_active_refs(f):
+            hits.append((f, ln, sym, txt))
+    if hits:
+        for f, ln, sym, txt in hits:
+            print("  !! %s L%d [%s] %s" % (f, ln, sym, txt))
+        bad += len(hits)
+    else:
+        print("  OK：没有主控专属符号泄漏进从机固件")
 
     print()
     print("结论：%s"
