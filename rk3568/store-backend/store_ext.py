@@ -770,6 +770,37 @@ class StoreExt(object):
                     payload.get("confirm"), work, verify,
                     detail="解绑 RFID %s" % uid, endpoint="/api/admin/unbind-rfid")
 
+    def report_rfid(self, uid, scene="slave"):
+        """从机（ESP32-S3）刷卡上报：把卡号登记进待处理队列。
+
+        与 `bind_rfid` 里那段 `INSERT INTO rfid_pending` 落的是**同一张表**，
+        所以页面轮询 `/api/rfid-poll` 不用改一行就能看到。
+
+        为什么需要它：原工程里主控（ESP32-S3）自己读卡、自己写库，
+        没有「从机上报」这条 HTTP 路径。降级成从机后读卡的还是 ESP32-S3，
+        落库的变成 RK3568，中间必须有入口 —— 否则从机发出去是 404，
+        而且是**静默的**（从机只累加失败计数、不报错），很难发现。
+
+        去重：同一张卡在「尚未被消费」期间重复上报只记一次。
+        RFID 模块在卡片停在感应区时会反复触发；从机侧靠 `lastCardTime`
+        做了 2 秒去重，这里再兜一层（从机重启后计数器会归零）。
+        """
+        uid = (uid or "").strip()
+        if not uid:
+            return False, "缺少 uid", None
+        with self.lock:
+            with self.conn:
+                row = self.conn.execute(
+                    "SELECT id FROM rfid_pending WHERE uid=? AND consumed=0 "
+                    "ORDER BY id DESC LIMIT 1", (uid,)).fetchone()
+                if row:
+                    return True, "已登记（去重）", {"uid": uid, "id": row["id"]}
+                cur = self.conn.execute(
+                    "INSERT INTO rfid_pending(uid, scene, created_at) VALUES(?,?,?)",
+                    (uid, scene, now_iso()))
+                return True, "已登记待处理 RFID %s" % uid, \
+                    {"uid": uid, "id": cur.lastrowid}
+
     def poll_rfid(self, scene=None, consume=True):
         """轮询待处理卡。主控/会员端用。"""
         with self.lock:

@@ -3,7 +3,7 @@
 #ifndef __WIFI_TEST_H
 #define __WIFI_TEST_H
 
-void wifi_init();
+void wifi_init(unsigned long timeoutMs = 30000);
 void WIFI_Set();
 void WIFI_Requst();
 

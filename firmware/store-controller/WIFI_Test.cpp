@@ -9,23 +9,36 @@
 const char* ssid1 = WIFI_STA_SSID;
 const char* password1 = WIFI_STA_PASSWORD;
 
-void wifi_init()
+void wifi_init(unsigned long timeoutMs)
 {
     // 开启串口
     Serial.begin(115200);
 
     // 开始连接 WiFi
     WiFi.begin(ssid1, password1);
-    Serial.println("正在连接 WiFi...");
+    Serial.printf("正在连接 WiFi（最多等 %lu 秒）...\n", timeoutMs / 1000);
 
-    // 等待连接成功
+    // 等待连接成功。
+    // 原来这里是死循环，现场没网就永远起不来 —— 从机模式下称重/RFID/按键
+    // 这些本地外设本来就不依赖网络，不该被 WiFi 卡住整个启动。
+    // timeoutMs 传 0 表示回到原来的无限等待。
+    unsigned long startedAt = millis();
     while (WiFi.status() != WL_CONNECTED)
     {
+        if (timeoutMs > 0 && (millis() - startedAt) >= timeoutMs)
+        {
+            Serial.println();
+            Serial.printf("WiFi 连接超时（%lu 秒），继续启动。\n", timeoutMs / 1000);
+            Serial.println("离线仍可跑：称重 / RFID / 扫码枪 / 按键录音。");
+            Serial.println("需要联网的部分（TTS 播报、上报 RK）会一直重试。");
+            return;
+        }
         delay(500);
         Serial.print(".");
     }
 
     // 连接成功提示
+    Serial.println();
     Serial.println("WiFi 连接成功！");
     Serial.print("IP 地址：");
     Serial.println(WiFi.localIP());

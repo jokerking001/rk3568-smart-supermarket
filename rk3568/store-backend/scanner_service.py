@@ -84,6 +84,21 @@ def now_iso():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _truthy(value):
+    """按真值语义解析开关，兼容 JSON 的 true/false 和 form 的 "1"/"0"/"true"。
+
+    直接 bool() 会在 form 编码下出错：`add_to_cart=0` 拿到字符串 "0"，
+    bool("0") 是 True —— 想关掉反而打开。ESP32-S3 从机走 form 编码。
+    """
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, (int, float)):
+        return value != 0
+    return str(value).strip().lower() in ("1", "true", "yes", "on", "y", "t")
+
+
 def device_name(path):
     """Return the kernel name of an input device, or '' when unreadable."""
     try:
@@ -604,8 +619,13 @@ class ScannerHandler(BaseHTTPRequestHandler):
         payload = self._body()
         try:
             if path == "/api/scanner/inject":
-                result = self.scanner.emit(payload.get("code", ""), source="inject",
-                                           add_to_cart=bool(payload.get("add_to_cart")),
+                # ⚠️ `add_to_cart` 不能直接 bool()：本接口同时收 JSON 和
+                # form-urlencoded（见 _body），form 传 `add_to_cart=0` 时
+                # 拿到的是字符串 "0"，bool("0") == True —— 想关掉反而打开。
+                # ESP32-S3 从机走的就是 form，必须按真值语义解析。
+                result = self.scanner.emit(payload.get("code", ""),
+                                           source=payload.get("source") or "inject",
+                                           add_to_cart=_truthy(payload.get("add_to_cart")),
                                            session=payload.get("session") or "default")
                 return self._json(result)
             if path == "/api/scanner/config":

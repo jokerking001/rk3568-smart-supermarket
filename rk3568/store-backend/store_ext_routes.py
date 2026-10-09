@@ -593,6 +593,25 @@ class ExtRouter(object):
     def h_admin_unbind_rfid(self, req):
         return triple_to_reply(self.ext.unbind_rfid(req.merged()))
 
+    def h_rfid_report(self, req):
+        """**从机（ESP32-S3）刷卡上报**入口。
+
+        ESP32-S3 降级为外设从机后，读卡的是它，落库的是这里。
+        原工程的 `bind_rfid` 只在「管理员点绑定→等刷卡」时写 `rfid_pending`，
+        没有「从机主动上报」这条路 —— 从机发出去会 404，且是静默的
+        （从机只记失败计数，不报错）。所以补这个端点。
+
+        上报的卡号进 `rfid_pending`，语义与页面轮询 `/api/rfid-poll` 完全一致：
+        页面（管理员绑定 / 会员 / 收银台）轮询时就能看到，无需改页面。
+
+        权限 `open`：从机没有会话，且卡号本身不是机密（页面也明文轮询）。
+        """
+        uid = (req.arg("uid") or req.arg("rfid_uid") or "").strip()
+        if not uid:
+            return json_reply({"ok": False, "message": "缺少 uid"}, 400)
+        scene = (req.arg("scene") or "slave").strip() or "slave"
+        return triple_to_reply(self.ext.report_rfid(uid, scene=scene))
+
     def h_rfid_poll(self, req):
         """刷卡轮询。页面靠这个做「刷卡即登录」。
 
@@ -1258,6 +1277,9 @@ ROUTES = (
     ("POST", "/api/member/unbind-rfid", "member_unbind_rfid", "write"),
     ("GET", "/api/member/rfid-poll", "rfid_poll", "open"),
     ("GET", "/api/rfid-poll", "rfid_poll", "open"),
+    # 从机（ESP32-S3）刷卡上报。原工程没有这条路：主控自己读卡自己写库，
+    # 降级成从机后必须走 HTTP，所以补一个接收端点。见 h_rfid_report 的说明。
+    ("POST", "/api/rfid/report", "rfid_report", "open"),
     ("POST", "/api/admin/bind-rfid", "admin_bind_rfid", "admin"),
     ("POST", "/api/admin/unbind-rfid", "admin_unbind_rfid", "admin"),
     ("POST", "/api/customer/member-session", "customer_member_session", "open"),
