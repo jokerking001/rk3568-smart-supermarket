@@ -611,7 +611,7 @@ int get_wakeup_audio_data(size_t offset, size_t length, float *out_ptr) {
 
 
 // ── 转人工通知：miniclaw 地址 ──────────────────────────────
-#define MINICLAW_IP      "192.168.43.100"   // miniclaw 的局域网 IP
+#define MINICLAW_IP      "10.176.240.100"   // miniclaw 的局域网 IP（2026-10-09 随热点换网段）
 #define MINICLAW_PORT    18791
 
 static unsigned long s_last_human_service_notify = 0;

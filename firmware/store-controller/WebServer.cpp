@@ -1412,7 +1412,7 @@ function askAI(q){
   var done=false;
   function fallback(){if(done)return;done=true;fetch("/api/customer/chat?q="+encodeURIComponent(q)).then(function(r){return r.json();}).then(function(r){rd.innerText=r.answer||r.msg||'暂时无法回答';}).catch(function(){rd.innerHTML="<span style='color:#ef4444'>提问遇到了一点小麻烦，请重试</span>";});}
   try{
-    var ws=new WebSocket('ws://192.168.43.100:18789/');
+    var ws=new WebSocket('ws://10.176.240.100:18789/');
     var timer=setTimeout(function(){try{ws.close();}catch(e){}fallback();},30000);
     ws.onopen=function(){ws.send(JSON.stringify({type:'message',chat_id:customerSessionId,content:q}));};
     ws.onmessage=function(ev){

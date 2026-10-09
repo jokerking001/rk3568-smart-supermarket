@@ -19,7 +19,7 @@
 #include <ArduinoJson.h>
 #include <time.h>
 
-#define MINICLAW_IP        "192.168.43.100"
+#define MINICLAW_IP        "10.176.240.100"
 #define MINICLAW_PORT      18791
 #define CHECK_INTERVAL_MS  60000    // 每 60 秒检查一次
 #define ALERT_COOLDOWN_MS  1800000  // 同一商品同一告警类型 30 分钟冷却
