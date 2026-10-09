@@ -657,6 +657,26 @@ def test_json_shapes(bench):
     body = json_of(bench.get("/api/env"))
     check("温湿度明确说不可用", body["available"], False)
 
+    # /api/products 走的是**内建路由**（不经扩展层，所以 bench.get 拿不到它，
+    # 见 [17]），但 web/*.html 直接依赖它的字段名：页面按 `qr_code` 取商品码、
+    # 按 `icon` 取图标。2026-10-09 实机发现这两者对不上过 —— products 表的
+    # 列名是 `code` 且没有 icon 列，导致 `if(!p.name||!p.qr_code)return;`
+    # 永远为假，**商品列表 / 促销大屏 / 管理端商品表全是空的，而且一声不响**。
+    # 之前的 [16] 只测扩展层端点，所以没兜住。这里直接测内建路由用的那个函数，
+    # 把契约钉死。
+    products = bench.store.list_products()          # 等价 GET /api/products
+    check_true("商品列表非空", isinstance(products, list) and len(products) > 0)
+    p0 = products[0] if products else {}
+    check_true("商品带 qr_code（页面按它取码）", bool(p0.get("qr_code")),
+               sorted(p0.keys()))
+    check("qr_code 与 code 一致", p0.get("qr_code"), p0.get("code"))
+    check_true("商品带 icon（页面按它取图标）", bool(p0.get("icon")),
+               sorted(p0.keys()))
+    # 带查询的那条分支共用同一个出口，也要有
+    hit = bench.store.list_products("可乐")
+    check_true("带查询的商品列表也有 qr_code",
+               all(r.get("qr_code") for r in hit), hit)
+
     body = json_of(bench.get("/api/ext/status"))
     check("扩展状态 ok", body["ok"], True)
     check("设备令牌默认开放", body["device_token"], "unset(开放)")

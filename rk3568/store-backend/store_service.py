@@ -59,6 +59,54 @@ SEED_PRODUCTS = [
     ("6901234567897", "奥利奥饼干 97g", 9.90, 15, 9, "2026-03-20", 12, "零食"),
 ]
 
+# --------------------------------------------------------------------------
+# 展示字段补齐（2026-10-09）
+# --------------------------------------------------------------------------
+# 网页端（web/bigscreen.html、web/index.html、web/admin.html）一律按
+# ``qr_code`` 取商品码、按 ``icon`` 取图标，但 products 表的列名是 ``code``，
+# 且表里根本没有 icon 这一列。两边对不上 → 前端那些
+# ``if (!p.name || !p.qr_code) return;`` 永远为假 ——
+# **商品列表 / 促销大屏 / 管理端商品表全是空的，而且一声不响**。
+# 实机证据：板端无头渲染 /bigscreen 只有一句「等待商品数据...」。
+#
+# 修法：在出口处补齐。一处修，三个页面全部生效。
+# 注意是**新增**字段而不是把 code 改名 —— 历史调用方（含测试）不受影响。
+CATEGORY_ICON = {
+    "饮料": "\U0001F964",        # 杯子+吸管
+    "零食": "\U0001F36B",        # 巧克力
+    "方便食品": "\U0001F35C",    # 拉面
+    "日用品": "\U0001F9FB",      # 卷纸
+    "粮油": "\U0001F35A",        # 米饭
+    "生鲜": "\U0001F96C",        # 绿叶菜
+    "水果": "\U0001F34E",        # 苹果
+    "乳品": "\U0001F95B",        # 牛奶
+}
+
+
+def _icon_for(category, name):
+    """按分类给个图标；分类认不出来就在名字里找关键字，最后兜底成箱子。"""
+    if category in CATEGORY_ICON:
+        return CATEGORY_ICON[category]
+    text = "%s%s" % (category or "", name or "")
+    for key in CATEGORY_ICON:
+        if key in text:
+            return CATEGORY_ICON[key]
+    return "\U0001F4E6"           # 箱子
+
+
+def decorate_product(row):
+    """给商品行补上网页端依赖的 ``qr_code`` / ``icon``（幂等）。
+
+    ``code`` 保持原样不动，只做**新增**，所以老调用方与测试都不受影响。
+    """
+    if not row:
+        return row
+    if "qr_code" not in row and "code" in row:
+        row["qr_code"] = row["code"]
+    if not row.get("icon"):
+        row["icon"] = _icon_for(row.get("category"), row.get("name"))
+    return row
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS products (
     code        TEXT PRIMARY KEY,
@@ -275,12 +323,12 @@ class Store(object):
             else:
                 rows = self._rows(self._conn.execute(
                     "SELECT * FROM products ORDER BY category, name"))
-            return rows
+            return [decorate_product(r) for r in rows]
 
     def find_by_code(self, code):
         with self.lock:
-            return self._one(self._conn.execute(
-                "SELECT * FROM products WHERE code=?", (str(code).strip(),)))
+            return decorate_product(self._one(self._conn.execute(
+                "SELECT * FROM products WHERE code=?", (str(code).strip(),))))
 
     def find_by_name(self, name):
         with self.lock:

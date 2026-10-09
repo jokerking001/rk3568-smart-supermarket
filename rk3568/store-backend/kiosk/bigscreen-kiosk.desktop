@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=智慧超市大屏 (HDMI Kiosk)
+Name[en]=Smart Supermarket Big Screen (HDMI Kiosk)
+Comment=开机自动在 HDMI 显示器上全屏显示 8094 的促销大屏
+Exec=/bin/bash /home/linaro/ai/kiosk/start-kiosk.sh
+Icon=chromium
+Terminal=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+StartupNotify=false

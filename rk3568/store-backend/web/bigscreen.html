@@ -7,7 +7,7 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 /* B端暗黑数据看板主题 */
-body{font-family:'Inter','PingFang SC','Microsoft YaHei',sans-serif;background:#0B1437;color:#FFFFFF;overflow:hidden;width:100vw;height:100vh;cursor:pointer}
+body{font-family:'Inter','PingFang SC','Microsoft YaHei',Symbola,'Noto Color Emoji','Apple Color Emoji','Segoe UI Emoji',sans-serif;background:#0B1437;color:#FFFFFF;overflow:hidden;width:100vw;height:100vh;cursor:pointer}
 
 .slide{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;transition:opacity 0.8s;padding:60px;padding-bottom:120px;}
 .slide.active{opacity:1}
@@ -98,12 +98,20 @@ var envTemp = "--", envHum = "--";
 
 // 拉取温湿度数据
 async function fetchEnv() {
+  // /api/env 返回的是 {ok, available, temperature, humidity, message}，
+  // 旧代码读的 d.t / d.h 根本不存在 —— undefined.toFixed() 抛异常被空 catch
+  // 吞掉，于是温湿度永远显示成 "-"。这里按真实字段读，并区分「传感器没接」。
   try {
     let r = await fetch('/api/env');
     let d = await r.json();
-    envTemp = d.t.toFixed(1);
-    envHum = d.h.toFixed(1);
-  } catch(e) {}
+    if (d && d.available && typeof d.temperature === 'number'
+        && typeof d.humidity === 'number') {
+      envTemp = d.temperature.toFixed(1);
+      envHum  = d.humidity.toFixed(1);
+    } else {
+      envTemp = null; envHum = null;
+    }
+  } catch(e) { envTemp = null; envHum = null; }
 }
 
 // 刷新右上角小组件（时间 + 轮播天气/温湿度）
@@ -118,7 +126,11 @@ function updateWidget() {
   let sec = d.getSeconds();
   let el = document.getElementById('envDisplay');
   if (sec % 10 < 5) {
-    el.innerHTML = '🌡️ ' + envTemp + '℃ &nbsp; 💧 ' + envHum + '%';
+    if (envTemp === null) {
+      el.innerHTML = '温湿度传感器未接';
+    } else {
+      el.innerHTML = '🌡️ ' + envTemp + '℃ &nbsp; 💧 ' + envHum + '%';
+    }
     el.style.color = '#00E396'; 
   } else {
     el.innerHTML = '📍 智慧门店 &nbsp; 🌤️ 晴朗'; // 修改这里！安全又高级
