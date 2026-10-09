@@ -1249,16 +1249,41 @@ class StoreExt(object):
                     detail="提交打印任务", endpoint="/api/printer/submit")
 
     def printer_job_meta(self):
-        """打印机先问「有没有活」。返回队首任务的最小信息。"""
+        """打印机先问「有没有活」。返回队首任务的最小信息。
+
+        两种客户端读**不同字段**，这里都满足：
+          · 网页 / 调试：`pending` / `count` / `job`
+          · 热敏打印机固件（`main.c` 的 `printer_task`）：顶层
+            `ready` / `id` / `width` / `height` / `bytes`。
+            ⚠️ 缺了这几个字段，打印机会**静默认为没任务** —— 不报错、不打印、
+            日志也不刷，是最难查的那种不一致（2026-10-09 联调时踩到）。
+        """
         with self.lock:
             row = self.conn.execute(
-                "SELECT id, kind, created_at, attempts FROM print_jobs "
+                "SELECT id, kind, created_at, attempts, meta FROM print_jobs "
                 "WHERE status='QUEUED' ORDER BY id LIMIT 1").fetchone()
             if not row:
-                return {"ok": True, "pending": False, "count": 0}
+                return {"ok": True, "pending": False, "count": 0, "ready": False}
             count = self.conn.execute(
                 "SELECT COUNT(*) AS n FROM print_jobs WHERE status='QUEUED'").fetchone()["n"]
+            try:
+                meta = json.loads(row["meta"] or "{}")
+            except (TypeError, ValueError):
+                meta = {}
+
+            def as_int(value):
+                # meta 里的 width/height 是 query 参数，进来时是字符串；
+                # cJSON 的 valueint 对字符串返回 0，所以这里必须先转成 int。
+                try:
+                    return int(value)
+                except (TypeError, ValueError):
+                    return 0
+
             return {"ok": True, "pending": True, "count": count,
+                    "ready": True, "id": row["id"],
+                    "width": as_int(meta.get("width")),
+                    "height": as_int(meta.get("height")),
+                    "bytes": as_int(meta.get("bytes")),
                     "job": dict(row)}
 
     def printer_job(self, job_id):

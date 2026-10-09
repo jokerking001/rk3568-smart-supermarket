@@ -14,6 +14,15 @@ void wifi_init(unsigned long timeoutMs)
     // 开启串口
     Serial.begin(115200);
 
+    // ⚠️ 必须显式关掉 modem sleep。
+    // Arduino-ESP32 默认 WIFI_PS_MIN_MODEM，发包要等 AP 的 DTIM 窗口，
+    // 往返延迟抖动可达 100~500ms；从机每 500ms 就要 POST 一次称重到 RK，
+    // 而 SLAVE_HTTP_TIMEOUT_MS 只有 400ms —— 实测上报失败率高达 72%
+    // （scale_ok:69 / scale_fail:181）。
+    // Mode_LowPower.cpp 里虽然也有 setSleep，但那段被 #if !SLAVE_MODE 包住，
+    // 从机形态下根本不编译，所以这里必须自己设。
+    WiFi.setSleep(WIFI_PS_NONE);
+
     // 开始连接 WiFi
     WiFi.begin(ssid1, password1);
     Serial.printf("正在连接 WiFi（最多等 %lu 秒）...\n", timeoutMs / 1000);

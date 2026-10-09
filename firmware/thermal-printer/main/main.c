@@ -543,7 +543,10 @@ static bool download_and_print(uint32_t id, int width, int height, int expected_
     }
 
     char url[192];
-    snprintf(url, sizeof(url), CONTROLLER_BASE_URL "/api/printer/job?id=%lu", (unsigned long)id);
+    /* 取**裸光栅字节**用 /printjob.bin（application/octet-stream）。
+     * 不要用 /api/printer/job —— 那条返回的是 JSON + base64，
+     * 直接当字节流读会打印出一堆乱码。（2026-10-09 联调时对齐的契约） */
+    snprintf(url, sizeof(url), CONTROLLER_BASE_URL "/printjob.bin?id=%lu", (unsigned long)id);
     esp_http_client_config_t config = {.url = url, .timeout_ms = 10000, .buffer_size = 1024};
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (!client) { strlcpy(last_error, "HTTP client init failed", sizeof(last_error)); return false; }

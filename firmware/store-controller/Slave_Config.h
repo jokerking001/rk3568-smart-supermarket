@@ -118,9 +118,15 @@
 // 否则大屏会一直判「上报已过期」。
 #define SLAVE_ENV_INTERVAL_MS     60000
 
-// 单次 HTTP 超时。设短一点：主循环里还有 I2S 录音和 TTS 在跑，
-// 网络抖动时阻塞太久会爆音。
-#define SLAVE_HTTP_TIMEOUT_MS     400
+// 单次 HTTP 超时。
+// ⚠️ 原值 400ms 在板端 CPU 满载时**必然超时**：RK3568 只有 4 核，同时跑
+// 视觉(8088) 82% + 水果(8089) 53% + 雷达 21% + kiosk chromium 88%，
+// load average 长期 6+。8099 融合服务自身只占 0.7% CPU，却被调度延迟
+// 拖到 500ms+ 才响应（实测 ping RTT 505ms），于是从机上报失败率
+// 72%~88%（scale_ok:69 / scale_fail:181）。
+// 提到 1000ms 覆盖这个抖动；不宜再大 —— 主循环里还有 I2S 录音和 TTS，
+// 失败时阻塞太久会爆音。
+#define SLAVE_HTTP_TIMEOUT_MS     1000
 
 // 连续失败多少条打一次串口。避免 RK 不在线时刷屏。
 #define SLAVE_LOG_EVERY_N_FAILS   20

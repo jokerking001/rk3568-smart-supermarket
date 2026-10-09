@@ -129,8 +129,13 @@ def main():
     if a.upload:
         print()
         print("--- 烧录到 %s ---" % a.upload)
+        # --input-dir 必带：产物被 --output-dir 定向到了 out，arduino-cli 3.x
+        # 的 upload 不会自动去那里找，而是回到 sketch 目录 / 默认缓存
+        # （AppData\Local\arduino\sketches\...）找 .partitions.bin，
+        # 于是报 `Errno 2: No such file or directory: ...Work7_20.ino.partitions.bin`。
         ucmd = [a.cli, "--config-file", a.config, "upload",
-                "-p", a.upload, "--fqbn", a.fqbn, sketch]
+                "-p", a.upload, "--fqbn", a.fqbn,
+                "--input-dir", out, sketch]
         print("$", " ".join(ucmd))
         return subprocess.run(ucmd).returncode
     return 0
