@@ -50,6 +50,29 @@ for i in $(seq 1 60); do
 done
 [ "$ready" = "1" ] || log "!! 8094 等了 60s 还没起来，仍然尝试打开浏览器"
 
+# ---- 1.5 分辨率对齐到显示器原生模式 ----
+# 为什么：X 默认会落在 1280x720，而这块屏原生是 1366x768（EDID 首选时序），
+# 差 86 列会被拉伸缩放，字发虚。xrandr 里带 "+" 的就是当前屏的原生模式。
+# 故意不写死分辨率：换个显示器也能自适应；真认不出来就保持现状不动。
+OUT="$(xrandr 2>/dev/null | awk '/ connected/ {print $1; exit}')"
+if [ -n "$OUT" ]; then
+  MODE="$(xrandr 2>/dev/null | awk -v o="$OUT" '
+    $1 == o && / connected/ { f = 1; next }
+    f && /^[^ \t]/          { exit }
+    f { for (i = 1; i <= NF; i++) if ($i ~ /\+/) { print $1; exit } }')"
+  if [ -n "$MODE" ]; then
+    if xrandr --output "$OUT" --mode "$MODE" 2>/dev/null; then
+      log "分辨率已对齐：$OUT $MODE"
+    else
+      log "!! 设置 $OUT $MODE 失败，保持默认"
+    fi
+  else
+    log "!! 没找到 $OUT 的原生模式，保持默认"
+  fi
+else
+  log "!! 没检测到已连接的显示输出"
+fi
+
 # ---- 2. 关屏保 / DPMS（不关的话闲置会黑屏）----
 xset s off       2>/dev/null && log "xset s off OK"       || log "!! xset s off 失败"
 xset -dpms       2>/dev/null && log "xset -dpms OK"       || log "!! xset -dpms 失败"
