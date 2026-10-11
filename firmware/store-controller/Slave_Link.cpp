@@ -2,6 +2,7 @@
 #include "Slave_Config.h"
 #include "HX711_Scale.h"
 #include "Voice_Interaction.h"
+#include "OTA_Update.h"
 
 #include <WiFi.h>
 #include <HTTPClient.h>
@@ -99,6 +100,11 @@ static void sendJson(WiFiClient& c, int code, const String& json)
 //     POST /api/tts    text=<文本>   → 交给异步播报队列
 //     POST /api/tare                 → 远程去皮
 //     GET  /api/status               → 状态
+//     ---- OTA（见 OTA_Update.cpp）----
+//     POST /api/ota/upload?reboot=1  → body = 固件原始字节
+//     POST /api/ota/reboot           → 重启
+//     POST /api/ota/rollback         → 切回另一个槽并重启
+//     GET  /api/ota/status           → 分区/进度
 // ------------------------------------------------------------
 static void handleInbound()
 {
@@ -114,13 +120,38 @@ static void handleInbound()
   reqLine.trim();
 
   int contentLength = 0;
+  String md5;                       // X-Firmware-MD5（可选，仅 OTA 用）
   while (c.available()) {
     String h = c.readStringUntil('\n');
     h.trim();
     if (h.length() == 0) break;
     if (h.startsWith("Content-Length:")) {
       contentLength = h.substring(15).toInt();
+    } else if (h.startsWith("X-Firmware-MD5:")) {
+      // 15 = strlen("X-Firmware-MD5:")
+      md5 = h.substring(15);
+      md5.trim();
     }
+  }
+
+  String method, path;
+  int sp1 = reqLine.indexOf(' ');
+  int sp2 = (sp1 > 0) ? reqLine.indexOf(' ', sp1 + 1) : -1;
+  if (sp1 > 0 && sp2 > sp1) {
+    method = reqLine.substring(0, sp1);
+    path   = reqLine.substring(sp1 + 1, sp2);
+  }
+
+  // ---- OTA 单独分流，**在读 body 之前** ----
+  // ⚠️ 顺序很关键：下面那段「读 body 进 String」对小请求没问题，
+  // 但 OTA 的 body 是 1.5MB 的固件，读进 String 会直接把堆撑爆
+  // （从机还要跑 I2S 录音/TTS，堆本来就紧）。所以必须先拿到 path，
+  // 再决定是流式写 flash 还是读进内存。
+  if (path.startsWith("/api/ota/")) {
+    OTA_HandleRequest(c, method, path, contentLength, md5);
+    delay(1);
+    c.stop();
+    return;
   }
 
   String body;
@@ -131,14 +162,6 @@ static void handleInbound()
     for (int i = 0; i < contentLength && c.available(); i++) {
       body += (char)c.read();
     }
-  }
-
-  String method, path;
-  int sp1 = reqLine.indexOf(' ');
-  int sp2 = (sp1 > 0) ? reqLine.indexOf(' ', sp1 + 1) : -1;
-  if (sp1 > 0 && sp2 > sp1) {
-    method = reqLine.substring(0, sp1);
-    path   = reqLine.substring(sp1 + 1, sp2);
   }
 
   if (method == "POST" && path == "/api/tts") {
@@ -163,7 +186,10 @@ static void handleInbound()
              + ",\"scale_ok\":" + String(statScaleOk)
              + ",\"scale_fail\":" + String(statScaleFail)
              + ",\"tts_served\":" + String(statTtsServed)
-             + ",\"tare_served\":" + String(statTareServed) + "}";
+             + ",\"tare_served\":" + String(statTareServed)
+             // 把 OTA 分区/计数一并带出来，排障时一个请求看全
+             + ",\"ota\":" + OTA_StatusJson()
+             + "}";
     sendJson(c, 200, j);
   }
   else {

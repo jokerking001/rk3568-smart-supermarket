@@ -37,6 +37,7 @@
 
 #if SLAVE_MODE
 #include "Slave_Link.h"
+#include "OTA_Update.h"
 #else
 // ---- 只有原主控才需要的（已被 RK3568 取代）----
 #include "WebServer.h"
@@ -83,6 +84,9 @@ void setup()
 
   // 与 RK3568 的通信层（开 HTTP 服务，供 RK 下发 TTS / 远程去皮）
   SlaveLink_Init();
+
+  // 无线固件升级：打印当前/备用分区，注册 /api/ota/* 端点
+  OTA_Init();
 
   Serial.println("=== 从机就绪 ===");
 }

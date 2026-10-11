@@ -150,6 +150,28 @@
 #define SLAVE_LOG_EVERY_N_FAILS   20
 
 // ------------------------------------------------------------
+//  无线固件升级（OTA）
+// ------------------------------------------------------------
+// 从机形态下原主控的 ElegantOTA 不会被编译（它挂在 WebServer 库上，
+// 而 WebServer.cpp 在 SLAVE_MODE=1 下整体排除），所以这里自带一套，
+// 挂在手搓的 WiFiServer 上。实现见 OTA_Update.cpp。
+//
+// 端点：POST /api/ota/upload?reboot=1   POST /api/ota/reboot
+//       POST /api/ota/rollback          GET  /api/ota/status
+//
+// 分区表已有 otadata + app0/app1 双槽（各 1.875MB），开箱即用。
+// 关掉（置 0）时上述端点统一回 404，可省下约 6KB flash。
+#ifndef ENABLE_OTA
+#define ENABLE_OTA                1
+#endif
+
+// 上传过程中「多久没收到新字节就判失败」。
+// 1.5MB 固件走 WiFi 约 20~60 秒，但**单包间隔**不该超过几秒；
+// 15 秒足够容忍一次重传/信道抖动，又不至于让断线的客户端把
+// 从机卡在 while 里（从机还要跑 I2S 录音，卡住就爆音）。
+#define SLAVE_OTA_RX_TIMEOUT_MS   15000
+
+// ------------------------------------------------------------
 //  可选：称重改走 UART
 // ------------------------------------------------------------
 // 打开后称重不再走 HTTP，而是从 SLAVE_UART_TX_PIN 发帧出去，

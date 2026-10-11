@@ -23,10 +23,15 @@
 //      · POST /api/tts      body: text=<要播报的文本>  → 喇叭播报
 //      · POST /api/tare                                 → 远程去皮
 //      · GET  /api/status                               → 状态 JSON
+//      · OTA（见 OTA_Update.h / OTA_Update.cpp）：
+//        POST /api/ota/upload?reboot=1  body = 固件原始字节
+//        POST /api/ota/reboot           → 重启
+//        POST /api/ota/rollback         → 切回另一个槽并重启
+//        GET  /api/ota/status           → 分区/进度 JSON
 //
 //  为什么不用 ESP32 的 WebServer 库：本工程自己有一个
 //  WebServer.h / WebServer.cpp（原主控的 81 端点服务），名字撞车。
-//  从机只需要三个路由，用 WiFiServer 手搓反而更可控。
+//  从机只需要几个路由，用 WiFiServer 手搓反而更可控。
 // ============================================================
 
 // 生命周期：建 HTTP 服务。必须在 wifi_init() 之后调用。
