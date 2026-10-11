@@ -394,7 +394,11 @@ var scanTimer = null;
 var lastSeenCode = '';
 var lastAddedCode = '';
 var lastAddedTime = 0;
-var MODULE_A_IP = "192.168.43.13";
+// 迁移前：摄像头扫码模块A（ESP32，HTTP /qr-scan）。
+// 2026-10-11 实测：网段内已无此设备（全段只有 PC/网关/RK/从机/打印机/MimiClaw），
+// 取码改走从机 → 8095 → 8094 的 /api/customer/scan-event（见下方 800ms 轮询）。
+// 留空即关闭下面的 doScan() 老轮询，避免每 200ms 打一个必然失败的外网请求。
+var MODULE_A_IP = "";
 var USE_PI_FALLBACK = false;
 var currentOrderId = -1;
 var currentOrderTotal = 0;
@@ -450,6 +454,7 @@ function startScan(){stopScan();doScan();scanTimer=setInterval(doScan,200);}
 function stopScan(){if(scanTimer){clearInterval(scanTimer);scanTimer=null;}}
 
 async function doScan(){
+  if(!MODULE_A_IP){return;}          // 模块A已下线 → 老路径整体停用
   if(window._skipScan){return;}
   try{
     var r=await fetch('http://' + MODULE_A_IP + '/qr-scan');

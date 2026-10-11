@@ -46,6 +46,15 @@ MAX_CODE_LEN = 64
 # Names that identify a scanner (or a device that must never be treated as one).
 SCANNER_HINTS = ("barcode", "bar code", "scanner", "scan", "symbol", "zebra",
                  "honeywell", "newland", "datalogic", "opticon", "扫码")
+# 厂商 / 产品名这类「强特征」。命中即采信，**不再**受 IGNORE_HINTS 约束。
+#
+# 为什么必须让强特征优先：HID 扫码枪出厂默认就是「模拟键盘」模式（见本文件开头
+# 的说明），内核名里几乎必然带 "keyboard"。现场实测设备名为
+# `NewLand HidKeyBoard` —— 同时命中 SCANNER_HINTS 的 "newland" 与
+# IGNORE_HINTS 的 "keyboard"，旧的单遍判定会把它当普通键盘排除，
+# 于是服务永远停在 waiting_device：**枪插着也用不了**（2026-10-11 实机踩到）。
+VENDOR_HINTS = ("barcode", "bar code", "scanner", "symbol", "zebra",
+                "honeywell", "newland", "datalogic", "opticon", "扫码")
 IGNORE_HINTS = ("keyboard", "mouse", "touchscreen", "touchpad", "power button",
                 "sleep button", "lid switch", "video bus", "hdmi", "gpio",
                 "rockchip", "rk8", "adc", "headphone", "jack")
@@ -165,8 +174,18 @@ def detect_scanner():
     Only an explicit name match is accepted.  Guessing from "it is not a keyboard"
     would eventually steal the touchscreen on a kiosk build, and a wrong device is
     worse than reporting ``waiting_device``.
+
+    两遍匹配（2026-10-11 修）：
+      1. 先认 ``VENDOR_HINTS``（厂商 / 产品名）—— 强特征，命中即用，
+         **不看 IGNORE_HINTS**。否则 HID 扫码枪会因名字里的 "keyboard"
+         被自己人排除掉（现场 `NewLand HidKeyBoard` 就是这么被漏掉的）。
+      2. 再退回宽松匹配 ``SCANNER_HINTS``，但仍排除 ``IGNORE_HINTS`` 里的设备。
     """
     candidates = list_input_devices(force=True)
+    for device in candidates:
+        lowered = device["name"].lower()
+        if any(hint in lowered for hint in VENDOR_HINTS):
+            return device
     for device in candidates:
         lowered = device["name"].lower()
         if any(hint in lowered for hint in SCANNER_HINTS):

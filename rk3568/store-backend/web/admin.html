@@ -459,9 +459,16 @@ async function runAnalysis(type){
 var scanMode='';     // 'cam' or 'gun'
 var scanTimer=null;
 var scannedCode='';
-var MODULE_A="192.168.43.13";
+// 迁移前：摄像头扫码模块A（ESP32，HTTP /qr-scan）。
+// 2026-10-11 实测网段内已无此设备 → 置空停用「摄像头扫码」，
+// 进货扫码请走旁边的「🔫 扫码枪」（从机 → 8095 → /api/scan-gun-result）。
+var MODULE_A="";
 
 function startCamScan(){
+  if(!MODULE_A){
+    alert('摄像头扫码模块A 已下线。请改用「🔫 扫码枪」进货。');
+    return;
+  }
   stopAllScan();
   fetch('/api/admin-cam-start'); // 通知ESP32商家在扫码，顾客端暂停
   fetch('/api/scan-gun-clear');
@@ -499,6 +506,7 @@ function stopAllScan(){
 
 var _lastCam='';
 async function pollCamera(){
+  if(!MODULE_A){return;}            // 模块A已下线 → 老轮询整体停用
   try{
     var r=await fetch('http://'+MODULE_A+'/qr-scan');
     var d=await r.json();

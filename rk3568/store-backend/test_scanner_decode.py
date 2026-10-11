@@ -189,6 +189,34 @@ def main():
     finally:
         sc.os.listdir, sc.device_name = real_listdir, real_name
 
+    # 回归（2026-10-11 实机踩到）：HID 扫码枪出厂默认就是「模拟键盘」，
+    # 内核名同时命中厂商名和排除词 "keyboard"。旧的单遍判定会把它当普通键盘排除，
+    # 服务永远停在 waiting_device。厂商名属强特征，必须优先采信。
+    try:
+        sc.os.listdir = lambda p: ["event0", "event1", "event2"]
+        sc.device_name = fake_names({
+            "/dev/input/event0": "rk805 pwrkey",
+            "/dev/input/event1": "NewLand HidKeyBoard",
+            "/dev/input/event2": "Goodix Capacitive TouchScreen",
+        })
+        found = sc.detect_scanner()
+        check("HID scanner named '...KeyBoard' is still found",
+              found and found["path"].replace("\\", "/") == "/dev/input/event1", "%s" % found)
+    finally:
+        sc.os.listdir, sc.device_name = real_listdir, real_name
+
+    # 反向保护：真正的普通键盘不能被强特征放行（它不含任何厂商名）。
+    try:
+        sc.os.listdir = lambda p: ["event0", "event1"]
+        sc.device_name = fake_names({
+            "/dev/input/event0": "rk805 pwrkey",
+            "/dev/input/event1": "AT Translated Set 2 keyboard",
+        })
+        found = sc.detect_scanner()
+        check("a plain keyboard is never claimed as a scanner", found is None, "%s" % found)
+    finally:
+        sc.os.listdir, sc.device_name = real_listdir, real_name
+
     print("\n== %d passed, %d failed ==" % (len(PASSED), len(FAILED)))
     if FAILED:
         for name in FAILED:
