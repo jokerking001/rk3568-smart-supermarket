@@ -580,7 +580,12 @@ static bool download_and_print(uint32_t id, int width, int height, int expected_
             offset += got;
         }
         if (ok) ok = print_row(row, motor_position++);
-        if ((y & 31) == 31) vTaskDelay(1);
+        // 每 32 行让出一次 CPU，给 Wi-Fi / HTTP 任务喘息。
+        // ⚠️ 原来写的是裸 `vTaskDelay(1)` —— 那是**1 个 tick**，不是 1 毫秒：
+        //    HZ=100 时 = 10ms，HZ=1000 时 = 1ms，行为随 CONFIG_FREERTOS_HZ 漂移。
+        //    改成 pdMS_TO_TICKS(10) 把意图钉死在「10 毫秒」，
+        //    这样下面把 HZ 提到 1000 时，打印节奏不会被顺带改掉。
+        if ((y & 31) == 31) vTaskDelay(pdMS_TO_TICKS(10));
     }
     outputs_safe();
     motor_position *= MOTOR_STEPS_PER_ROW;

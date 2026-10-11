@@ -5,3 +5,23 @@ CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
 CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE=4096
 CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=n
 CONFIG_ESP_BROWNOUT_DET=n
+
+# FreeRTOS 时基 1000 Hz（默认 100）。
+#
+# 为什么必须改：`pdMS_TO_TICKS(ms)` 在 HZ=100 下，ms<10 会**整除成 0**，
+# 于是 `vTaskDelay(0)` —— 不让出 CPU。`button_task` 的走纸循环里正是
+# `vTaskDelay(pdMS_TO_TICKS(3))`，一旦按键被按住（或恒为低），
+# 该任务就变成占满 CPU1 的死循环，IDLE1 饿死，任务看门狗每 5 秒报一次：
+#     E task_wdt: CPU 1: feed_button
+# 同类问题还有打印头供电后的 `pdMS_TO_TICKS(2)` 稳定延时（变成 0，等于没有）。
+#
+# 改到 1000 后：pdMS_TO_TICKS(3)=3 tick=3ms，走纸时序保持原设计
+# （motor_step 自身已有 6ms 物理延时，合计 ~9ms/步）。
+#
+# 为什么不选「把 3ms 换成 1 tick」：HZ=100 下 1 tick = 10ms，
+# 会把走纸周期从 ~9ms 拉到 ~16ms，慢 78%。
+#
+# 已核查：main.c 中除本处外的延时**全部**用 pdMS_TO_TICKS，
+# 唯一一处裸 tick（打印循环里每 32 行的 `vTaskDelay(1)`）已改为
+# pdMS_TO_TICKS(10)，因此本改动不会顺带改变其它节奏。
+CONFIG_FREERTOS_HZ=1000
