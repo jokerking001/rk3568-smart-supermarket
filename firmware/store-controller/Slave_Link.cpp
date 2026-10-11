@@ -187,6 +187,12 @@ static void handleInbound()
     // 无法区分是「没接读卡器/没刷卡」还是「上报在失败」——两个原因
     // 的处置完全不同，却只能靠读串口日志猜。补全后一次 GET 就能判定。
     String j = String("{\"ok\":true,\"role\":\"slave\",\"rk\":\"") + RK_HOST + "\""
+             // ⚠️ uptime_ms 必须带上：下面这些 ok/fail 都是**开机以来的累计值**，
+             // 没有时长就无法换算成速率。2026-10-11 又踩一次 —— 看到
+             // scale_fail=5599（换算 85%）以为链路崩了，其实是一次 OTA 期间
+             // 主循环被独占 68 秒留下的历史累积；60 秒增量实测只有 6.5%。
+             // **判据：永远算增量，别读绝对值。**
+             + ",\"uptime_ms\":" + String(millis())
              + ",\"scale_ok\":" + String(statScaleOk)
              + ",\"scale_fail\":" + String(statScaleFail)
              + ",\"rfid_ok\":" + String(statRfidOk)
