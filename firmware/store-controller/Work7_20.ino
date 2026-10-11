@@ -60,6 +60,10 @@ void setup()
   delay(100);
   Serial.println("=== 从机（外设）启动 ===");
 
+  // 先把配置问题摆到最前面 —— 密钥是占位值时，后面每一项都会以
+  // 「401 / 连不上」的形式报错，那些报错会把人带偏（详见 Secrets_Check.cpp）。
+  Secrets_SelfCheck();
+
   // 🛡️ 最高优先级：灯光、按键、语音先抢 DMA 和 JTAG 资源。
   // 顺序沿用原工程 —— Voice_Init 必须早于其他外设，否则 I2S 抢不到。
   led_init();
@@ -133,6 +137,9 @@ void setup()
   Serial.begin(115200);
   delay(100);
   Serial.println("=== 开始系统初始化 ===");
+
+  // 配置问题优先暴露（见 Secrets_Check.cpp）
+  Secrets_SelfCheck();
 
   // 2. 🛡️ 【最高优先级】优先初始化灯光、按键与语音，霸占 DMA 和 JTAG 资源！
   led_init();

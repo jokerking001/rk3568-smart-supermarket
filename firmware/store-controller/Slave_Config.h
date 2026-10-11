@@ -160,4 +160,31 @@
 #define SLAVE_UART_TX_PIN        (-1)
 #define SLAVE_UART_BAUD           115200
 
+// ------------------------------------------------------------
+//  密钥占位符检测 + 启动自检
+// ------------------------------------------------------------
+// secrets.h 不进版本库，clone 下来只能照 secrets.h.example 抄一份，
+// 里面全是 `your-xxx` / `sk-xxxx` / `change-me-` 这类占位值。
+//
+// 为什么必须检测：不检测的话，运行期只会看到
+//   「百度Token获取失败，状态码：401」
+// 排查时极易误判成「密钥填错了」或「网络不通」——**实际是根本没填**。
+// 2026-10-11 就为这个 401 白查过一轮。
+//
+// 判断只做字符串匹配，不依赖 Arduino，放头文件里给各处复用。
+#include <string.h>
+static inline bool Secret_IsPlaceholder(const char *v)
+{
+    if (v == NULL || v[0] == '\0') return true;
+    // 与 secrets.h.example 的占位写法保持一致
+    return (strstr(v, "your-")     != NULL ||
+            strstr(v, "xxxx")      != NULL ||
+            strstr(v, "change-me") != NULL ||
+            strstr(v, "CHANGE_ME") != NULL);
+}
+
+// 在 setup() 里调一次，把「没配」和「配错」分开。
+// 只打状态，**绝不打印密钥值**（仓库有凭据残留守卫，SSID 也算凭据）。
+void Secrets_SelfCheck();
+
 #endif  // SLAVE_CONFIG_H

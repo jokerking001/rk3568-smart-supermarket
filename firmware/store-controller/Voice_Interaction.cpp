@@ -263,6 +263,21 @@ void Voice_StopRecording()
 
 String Voice_GetBaiduToken()
 {
+  // 占位值直接短路。
+  // 不拦的话，会拿 `your-baidu-api-key` 去换 token，结果只有一个 401，
+  // 而那条日志会把人往「密钥填错了 / 网络不通」上带 —— 实际是**根本没填**。
+  // 启动时 Secrets_SelfCheck() 已经报过一次，这里只补一次精简提示。
+  if (Secret_IsPlaceholder(baidu_api_key) || Secret_IsPlaceholder(baidu_secret_key)) {
+    static bool warned = false;
+    if (!warned) {
+      warned = true;
+      Serial.println("[配置缺失] 百度语音密钥仍是占位值，语音识别/播报已跳过（不再发 401 请求）。");
+      Serial.println("           填 firmware/store-controller/secrets.h 的 BAIDU_API_KEY /");
+      Serial.println("           BAIDU_SECRET_KEY 后重烧。");
+    }
+    return "";
+  }
+
   HTTPClient http;
   WiFiClientSecure client;
   client.setInsecure(); 
