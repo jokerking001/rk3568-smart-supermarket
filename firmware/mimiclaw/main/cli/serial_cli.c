@@ -12,6 +12,7 @@
 #include "cron/cron_service.h"
 #include "heartbeat/heartbeat.h"
 #include "skills/skill_loader.h"
+#include "ota/ota_manager.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -20,6 +21,7 @@
 #include "esp_log.h"
 #include "esp_console.h"
 #include "esp_system.h"
+#include "esp_ota_ops.h"
 #include "esp_heap_caps.h"
 #include "nvs_flash.h"
 #include "nvs.h"
@@ -768,6 +770,57 @@ static int cmd_web_search(int argc, char **argv)
     return (err == ESP_OK) ? 0 : 1;
 }
 
+/* --- ota command --- */
+static struct {
+    struct arg_str *url;
+    struct arg_end *end;
+} ota_args;
+
+static int cmd_ota(int argc, char **argv)
+{
+    int nerrors = arg_parse(argc, argv, (void **)&ota_args);
+    if (nerrors != 0) {
+        arg_print_errors(stderr, ota_args.end, argv[0]);
+        return 1;
+    }
+
+    const char *url = ota_args.url->sval[0];
+
+    if (strcmp(url, "status") == 0) {
+        const esp_partition_t *running = esp_ota_get_running_partition();
+        const esp_partition_t *next = esp_ota_get_next_update_partition(NULL);
+        printf("running : %s @ 0x%08x\n",
+               running ? running->label : "?", (unsigned)(running ? running->address : 0));
+        printf("next    : %s @ 0x%08x\n",
+               next ? next->label : "?", (unsigned)(next ? next->address : 0));
+        return 0;
+    }
+
+    if (strcmp(url, "rollback") == 0) {
+        printf("Rolling back to the previous firmware slot...\n");
+        esp_err_t rb = esp_ota_mark_app_invalid_rollback_and_reboot();
+        /* 成功时内部会重启，走不到这里 */
+        printf("Rollback failed: %s\n", esp_err_to_name(rb));
+        return 1;
+    }
+
+    if (strncmp(url, "https://", 8) != 0 && strncmp(url, "http://", 7) != 0) {
+        printf("Refusing: URL must start with https:// or http:// (got \"%s\")\n", url);
+        return 1;
+    }
+    if (strncmp(url, "http://", 7) == 0) {
+        printf("WARNING: http:// is unencrypted — only use it on a trusted LAN.\n");
+    }
+
+    printf("OTA from %s\n", url);
+    printf("Downloading and flashing. Do NOT power off.\n");
+
+    esp_err_t err = ota_update_from_url(url);
+    /* 成功时 ota_update_from_url 内部 esp_restart()，不会走到这里 */
+    printf("OTA failed: %s\n", esp_err_to_name(err));
+    return 1;
+}
+
 /* --- restart command --- */
 static int cmd_restart(int argc, char **argv)
 {
@@ -1066,6 +1119,18 @@ esp_err_t serial_cli_init(void)
         .argtable = &web_search_args,
     };
     esp_console_cmd_register(&web_search_cmd);
+
+    /* ota */
+    ota_args.url = arg_str1(NULL, NULL, "<url|status|rollback>",
+                            "Firmware .bin URL (http/https), or 'status', or 'rollback'");
+    ota_args.end = arg_end(1);
+    esp_console_cmd_t ota_cmd = {
+        .command = "ota",
+        .help = "OTA: ota <http(s)-url> | ota status | ota rollback",
+        .func = &cmd_ota,
+        .argtable = &ota_args,
+    };
+    esp_console_cmd_register(&ota_cmd);
 
     /* restart */
     esp_console_cmd_t restart_cmd = {

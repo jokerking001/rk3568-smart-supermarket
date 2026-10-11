@@ -12,6 +12,7 @@ idf_component_register(
         "memory/session_mgr.c"
         "gateway/ws_server.c"
         "gateway/alert_server.c"
+        "ota/ota_manager.c"
         "cli/serial_cli.c"
         "proxy/http_proxy.c"
         "cron/cron_service.c"
