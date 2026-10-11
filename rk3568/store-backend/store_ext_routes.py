@@ -314,6 +314,22 @@ class ExtRouter(object):
         JS `confirm()` 了。
         """
         if permission == "open":
+            # ⚠️ 这里必须**同时**置 implied_confirm，不能直接 return。
+            # 原先漏了这一步，与上面 docstring 写的「能走到这里的请求要么是
+            # 顾客端公开接口…」自相矛盾，后果是：open 路由只要内部走到
+            # store_ext 的 `privileged()`，就会被「该操作需要确认」挡下。
+            #
+            # 2026-10-11 实测踩到：手机扫码页（web/pay.html）发的
+            # `GET /api/mobile-pay?order=N` 一直是 400「请带 confirm=true 重试」，
+            # 顾客点「✅ 确认支付」毫无反应。
+            #
+            # 顾客端页面自己就是确认环节（kiosk 选支付方式、pay.html 的确认按钮），
+            # 请求里不带 confirm 参数，和收银员页面用 JS confirm() 是一个道理。
+            #
+            # 注意：开了 STORE_REQUIRE_CONFIRM=1（严格模式）时这里也会变成 False，
+            # 顾客端页面**不会**自己带 confirm=true，于是自助结算会 400。
+            # ⇒ 生产环境不要开严格模式，除非同时改顾客端页面。
+            req.implied_confirm = not self.require_confirm
             return None
         if permission == "device":
             if self.device_ok(req):
@@ -1337,11 +1353,33 @@ ROUTES = (
     ("POST", "/api/printer/ack", "printer_ack", "device"),
 
     # ---- 支付
-    ("POST", "/api/mobile-pay", "mobile_pay", "write"),
+    # ⚠️⚠️ 这四条**必须是 open**，它们全是「顾客自己在终端上操作」的路径，
+    #   顾客端页面（web/index.html，标题「智慧超市 - 顾客端」，由 `/` 和
+    #   `/customer` 以 open 提供）与手机扫码页（web/pay.html）**都没有、
+    #   也不该有收银员会话** —— 它们连登录入口都没有。
+    #
+    #   2026-10-11 排查发现的真实故障：这四条原先被标成 `write`，
+    #   于是顾客自助结算**整条链全断**，且是**静默**的：
+    #     · GET  /api/checkout     -> 401（页面 catch 住，只弹「订单通道拥挤」）
+    #     · GET  /api/pay-confirm  -> 401
+    #     · GET  /api/mobile-pay   -> 404（当时只登记了 POST，而 pay.html 发的是 GET）
+    #     · POST /api/mobile-pay   -> 401
+    #   现象是「扫码后手机页点确认没反应」「现金支付卡住」，看不出是鉴权问题。
+    #
+    #   为什么降为 open **不增加任何暴露面**：store_service 内建的
+    #   `POST /api/checkout`、`POST /api/order/confirm`（同样会置 PAID）
+    #   **本来就没有鉴权**，任何能访问 8094 的人早就能建单/确认支付。
+    #   把 GET 侧对齐成 open，只是让页面能用，没有新增能力。
+    #
+    #   真要收紧，得连 store_service 那两条一起做（例如引入顾客会话 +
+    #   限单/限速），那是独立的一件事，别只把这四条改回 write —— 那只会
+    #   把顾客端再次弄坏，安全性一点没变。
+    ("POST", "/api/mobile-pay", "mobile_pay", "open"),
+    ("GET", "/api/mobile-pay", "mobile_pay", "open"),
     ("GET", "/api/pay-status", "pay_status", "open"),
-    ("POST", "/api/pay-confirm", "pay_confirm", "write"),
-    ("GET", "/api/pay-confirm", "pay_confirm", "write"),
-    ("GET", "/api/checkout", "checkout_get", "write"),
+    ("POST", "/api/pay-confirm", "pay_confirm", "open"),
+    ("GET", "/api/pay-confirm", "pay_confirm", "open"),
+    ("GET", "/api/checkout", "checkout_get", "open"),
 
     # ---- 报表 / 大屏 / 分析
     ("GET", "/api/admin/export-report", "export_report", "admin"),

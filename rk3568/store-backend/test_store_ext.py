@@ -613,6 +613,65 @@ def test_item_name_with_x(bench):
         check("商品正确", order["items"][0]["name"], "X牌 混合果x盒")
 
 
+def test_customer_pay_flow_without_session(bench):
+    """顾客端（kiosk 页面 + 手机扫码页）**没有收银员会话**，这条链必须能跑通。
+
+    2026-10-11 修复的真实故障（同日实测复现）：这四条端点被标成
+    `write` / 压根没登记，于是顾客自助结算**整条链全断**，而且是**静默**的 ——
+    web/index.html 的 `doCheckout()` 把 401 吞进 catch，只弹一句
+    「订单通道拥挤，请重试」，从现象上完全看不出是鉴权问题。
+
+    这里同时锁两层：
+      · 路由表层面（权限必须逐条是 open）—— 最直接的防回归
+      · 端到端层面（完全不带 cookie 走完整条链）—— 防止 handler 内部再插鉴权
+    """
+    print("[14b] 顾客自助结算：无会话可用（防回归）")
+
+    # ---- 第一层：路由表权限 ----
+    for method, path in (("GET", "/api/checkout"),
+                         ("GET", "/api/pay-confirm"),
+                         ("POST", "/api/pay-confirm"),
+                         ("GET", "/api/mobile-pay"),
+                         ("POST", "/api/mobile-pay")):
+        table = sr.ROUTES_GET if method == "GET" else sr.ROUTES_POST
+        entry = table.get(path)
+        check_true("%s %s 已登记" % (method, path), entry is not None)
+        if entry:
+            check("%s %s 权限是 open" % (method, path), entry[1], "open")
+
+    # ---- 第二层：端到端，全程不带 cookies ----
+    bench.store.add_product({"code": "C0001", "name": "顾客端测试商品",
+                             "price": 3.0, "stock": 20, "category": "测试"})
+
+    # 1) kiosk 下单（web/index.html doCheckout）
+    reply = bench.get("/api/checkout", {"items": "顾客端测试商品x2", "total": "6.00"})
+    check("无会话可下单", reply.status, 200)
+    body = json_of(reply)
+    check("下单 ok", body["ok"], True)
+    order_id = body.get("orderId")
+    check_true("拿到 orderId", order_id is not None)
+
+    if order_id is None:
+        return
+
+    # 2) 手机扫码页确认支付（web/pay.html，发的是 GET）
+    reply = bench.get("/api/mobile-pay", {"order": order_id})
+    check("无会话可发起手机付款", reply.status, 200)
+    check("发起 ok", json_of(reply)["ok"], True)
+
+    # 3) kiosk 轮询付款状态（startPayPolling 判的是 confirmed）
+    reply = bench.get("/api/pay-status", {"order": order_id})
+    check("无会话可查付款状态", reply.status, 200)
+    check("confirmed 为真", json_of(reply)["confirmed"], True)
+
+    # 4) kiosk 收尾确认（confirmPayAndFinish / doCashPayment）
+    reply = bench.get("/api/pay-confirm",
+                      {"orderId": order_id, "items": "C0001:2"})
+    check("无会话可确认支付", reply.status, 200)
+    check("确认 ok", json_of(reply)["ok"], True)
+    check("订单已 PAID", bench.store.get_order(order_id)["status"], "PAID")
+
+
 def test_printer_binary_upload(bench):
     print("[15] 打印机收裸二进制光栅")
     cashier = bench.as_cashier()
@@ -988,6 +1047,7 @@ def main():
         test_page_endpoint_coverage(bench)
         test_checkout_get(bench)
         test_item_name_with_x(bench)
+        test_customer_pay_flow_without_session(bench)
         test_printer_binary_upload(bench)
         test_json_shapes(bench)
         test_unknown_path(bench)
