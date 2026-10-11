@@ -6,7 +6,11 @@ static unsigned long lastCardTime = 0;
 
 void RFID_Init() {
   Serial2.begin(115200, SERIAL_8N1, RFID_RX_PIN, RFID_TX_PIN);
-  Serial.println("[RFID] init GPIO18(RX) GPIO21(TX) @115200");
+  // ⚠️ 引脚号必须与 RFID_Reader.h 的 RFID_RX_PIN/RFID_TX_PIN 一致。
+  // 这行日志原先写的是 "GPIO18(RX) GPIO21(TX)"，与头文件（RX=21, TX=15）
+  // 完全对不上 —— 现场按日志去查线会查到错误的脚。
+  Serial.printf("[RFID] init RX=GPIO%d TX=GPIO%d @115200\n",
+                RFID_RX_PIN, RFID_TX_PIN);
 }
 
 void RFID_HandleLoop() {

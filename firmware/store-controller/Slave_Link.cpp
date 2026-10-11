@@ -182,9 +182,19 @@ static void handleInbound()
     sendJson(c, 200, "{\"ok\":true}");
   }
   else if (method == "GET" && path == "/api/status") {
+    // ⚠️ 这里必须把**每一条上报链**的 ok/fail 都带出来。
+    // 2026-10-11 排障教训：早先只暴露了 scale，导致「RFID 事件为 0」
+    // 无法区分是「没接读卡器/没刷卡」还是「上报在失败」——两个原因
+    // 的处置完全不同，却只能靠读串口日志猜。补全后一次 GET 就能判定。
     String j = String("{\"ok\":true,\"role\":\"slave\",\"rk\":\"") + RK_HOST + "\""
              + ",\"scale_ok\":" + String(statScaleOk)
              + ",\"scale_fail\":" + String(statScaleFail)
+             + ",\"rfid_ok\":" + String(statRfidOk)
+             + ",\"rfid_fail\":" + String(statRfidFail)
+             + ",\"barcode_ok\":" + String(statBarcodeOk)
+             + ",\"barcode_fail\":" + String(statBarcodeFail)
+             + ",\"env_ok\":" + String(statEnvOk)
+             + ",\"env_fail\":" + String(statEnvFail)
              + ",\"tts_served\":" + String(statTtsServed)
              + ",\"tare_served\":" + String(statTareServed)
              // 把 OTA 分区/计数一并带出来，排障时一个请求看全

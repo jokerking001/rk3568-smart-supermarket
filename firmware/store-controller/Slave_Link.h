@@ -14,8 +14,9 @@
 //               按 SLAVE_SCALE_INTERVAL_MS（500ms）节奏持续发，
 //               **不是**只在读数变化时发 —— RK 侧判「样本过期」的
 //               阈值是 1500ms，断供就会一直判过期。
-//      · RFID   POST http://<RK>:8094/...
-//      · 扫码枪 POST http://<RK>:8095/...
+//      · RFID   POST http://<RK>:8094/api/rfid/report     uid=<卡号>
+//               ⚠️ 不是 /api/rfid-poll（那是页面轮询用的 GET，方向相反）
+//      · 扫码枪 POST http://<RK>:8095/api/scanner/inject  code=<条码>
 //      · 温湿度 POST http://<RK>:8094/api/env/report   DHT22 读数
 //               （60 秒一条。传感器在从机上，大屏在 RK 上，中间要这条）
 //
@@ -23,6 +24,8 @@
 //      · POST /api/tts      body: text=<要播报的文本>  → 喇叭播报
 //      · POST /api/tare                                 → 远程去皮
 //      · GET  /api/status                               → 状态 JSON
+//        （含 scale/rfid/barcode/env 各链路的 ok/fail 计数 + OTA 分区，
+//          一次 GET 就能判定「没数据」是硬件没接还是上报在失败）
 //      · OTA（见 OTA_Update.h / OTA_Update.cpp）：
 //        POST /api/ota/upload?reboot=1  body = 固件原始字节
 //        POST /api/ota/reboot           → 重启
