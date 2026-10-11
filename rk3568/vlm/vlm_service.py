@@ -64,7 +64,7 @@ DEFAULT_CONFIG = {
     "api_key": "",                    # openai 后端必填
     "proxy": "",                      # 外部接口需要代理时才填，例如 http://127.0.0.1:58829
     # ---- 业务 ----
-    "board_ip": "10.181.229.215",     # 板端 IP，随热点变化
+    "board_ip": "10.176.240.215",     # 板端 IP，随热点变化
     "board_vision_port": 8088,
     "max_tokens": 512,
     "temperature": 0.2,
@@ -254,7 +254,15 @@ def ask_vlm(cfg, image_b64, question):
 # 板端取图
 # --------------------------------------------------------------------------
 
-def fetch_board_frame(cfg, board_ip=None, timeout=20):
+def fetch_board_frame(cfg, board_ip=None, timeout=90):
+    """从板端视觉服务取一帧。
+
+    ⚠️ 超时不能按「健康局域网」定。2026-10-11 实测现场链路：
+       ping RTT 175~1562 ms、**16% 丢包**，44 KB 的 /raw.jpg 要 **36 秒**。
+       原来写死 20 秒 ⇒ 必然 TimeoutError('timed out')，识图问答整个不可用
+       （板端 8092 会回 {"ok":false,"error":"timed out"}，看不出是链路问题）。
+       90 秒覆盖这个抖动；再慢就该先修网络，而不是继续加超时。
+    """
     ip = (board_ip or cfg.get("board_ip") or "").strip()
     if not ip:
         raise RuntimeError("没有配置板端 IP")
@@ -263,7 +271,7 @@ def fetch_board_frame(cfg, board_ip=None, timeout=20):
     return http_bytes(url, timeout=timeout)
 
 
-def probe_board(cfg, board_ip=None, timeout=6):
+def probe_board(cfg, board_ip=None, timeout=15):
     ip = (board_ip or cfg.get("board_ip") or "").strip()
     port = int(cfg.get("board_vision_port") or 8088)
     result = {"board_ip": ip, "reachable": False, "detail": ""}

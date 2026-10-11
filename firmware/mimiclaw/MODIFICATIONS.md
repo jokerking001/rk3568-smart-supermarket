@@ -72,7 +72,7 @@ cp mimi_secrets.h.example mimi_secrets.h
 |---|---|
 | `MIMI_SECRET_WIFI_SSID` / `MIMI_SECRET_WIFI_PASSWORD` | 门店 Wi-Fi |
 | `MIMI_SECRET_API_KEY` | LLM API key（默认走 DeepSeek） |
-| `MIMI_SECRET_STORE_URL` | 门店主控地址，例如 `http://192.168.43.44` |
+| `MIMI_SECRET_STORE_URL` | 门店主控地址，例如 `http://10.176.240.215:8094` |
 | `MIMI_SECRET_STORE_API_KEY` | 管理接口鉴权头，**要和主控 `secrets.h` 里的值一致** |
 | `MIMI_SECRET_STATIC_IP` / `_NETMASK` / `_GATEWAY` | 可选，固定 IP |
 | `MIMI_SECRET_TG_TOKEN`、`MIMI_SECRET_SEARCH_KEY`、`MIMI_SECRET_TAVILY_KEY` | 上游原有的可选项 |

@@ -17,7 +17,7 @@ RK3568 智慧超市 - 板端「识图问答」服务
 不能用 dict 合并运算符、不能用 list[str] 标注。
 
 用法：
-  python3 vlm_client_service.py --port 8092 --pc http://10.181.229.84:8097
+  python3 vlm_client_service.py --port 8092 --pc http://10.176.240.242:8097
   curl -s --noproxy '*' http://127.0.0.1:8092/api/vlm/status
 """
 
@@ -37,7 +37,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(HERE, "vlm_client_config.json")
 
 DEFAULT_CONFIG = {
-    "pc_url": "http://10.181.229.84:8097",   # 电脑侧 VLM 服务，IP 随热点变化
+    # ⚠️ 这个默认值只在「板端没有 vlm_client_config.json」时生效。
+    # 现场以 /home/linaro/ai/vlm/vlm_client_config.json 为准 —— 电脑 IP 随热点变，
+    # 换网段后**两边都要改**（板端 pc_url 指电脑，电脑侧 vlm_config.json 的
+    # board_ip 指板端）。2026-10-11 实测两边都还停在旧网段，识图问答整条链是死的。
+    "pc_url": "http://10.176.240.242:8097",  # 电脑侧 VLM 服务，IP 随热点变化
     "vision_url": "http://127.0.0.1:8088",   # 板端视觉服务，取帧用
     "host": "0.0.0.0",
     "port": 8092,

@@ -10,13 +10,13 @@
 用法：
 
     # 最常用：板子 IP 给上，其余用默认
-    python tools/board_acceptance.py --board 192.168.43.44
+    python tools/board_acceptance.py --board 10.176.240.215
 
     # 只看服务健康，不跑回归（快）
-    python tools/board_acceptance.py --board 192.168.43.44 --skip-regression
+    python tools/board_acceptance.py --board 10.176.240.215 --skip-regression
 
     # 跳过哈希核对（没配 SSH 时）
-    python tools/board_acceptance.py --board 192.168.43.44 --skip-sync
+    python tools/board_acceptance.py --board 10.176.240.215 --skip-sync
 
     # 在板子本机上跑（不走 SSH，只做健康检查 + 回归）
     python tools/board_acceptance.py --local

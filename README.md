@@ -538,9 +538,9 @@ python tools/calibrate_int8.py collect --board <板端IP> --count 200
 | 3 | 598 项回归（板端执行） | 板端代码有问题 |
 
 ```bash
-python tools/board_acceptance.py --board 192.168.43.44                 # 全跑
-python tools/board_acceptance.py --board 192.168.43.44 --skip-regression   # 只看健康+一致性，快
-python tools/board_acceptance.py --board 192.168.43.44 --skip-sync         # 没配 SSH 时
+python tools/board_acceptance.py --board 10.176.240.215                 # 全跑
+python tools/board_acceptance.py --board 10.176.240.215 --skip-regression   # 只看健康+一致性，快
+python tools/board_acceptance.py --board 10.176.240.215 --skip-sync         # 没配 SSH 时
 python tools/board_acceptance.py --local                                   # 在板子本机上跑
 ```
 

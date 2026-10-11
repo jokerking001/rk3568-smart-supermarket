@@ -3,10 +3,10 @@
 
 交接文档把它列为待办，但一直没有脚本。上板后直接跑：
 
-    python tools/stress_test_30min.py --board 192.168.43.44
+    python tools/stress_test_30min.py --board 10.176.240.215
 
     # 冒烟（1 分钟，先确认脚本本身没问题）
-    python tools/stress_test_30min.py --board 192.168.43.44 --minutes 1
+    python tools/stress_test_30min.py --board 10.176.240.215 --minutes 1
 
     # 在板子本机上跑（温度/日志走本地，不走 SSH）
     python tools/stress_test_30min.py --local --minutes 30

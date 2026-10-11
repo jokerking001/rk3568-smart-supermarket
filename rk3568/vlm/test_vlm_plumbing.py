@@ -14,7 +14,7 @@
 
 用法：
   python test_vlm_plumbing.py                      # 只测 upload 路径
-  python test_vlm_plumbing.py --board 10.181.229.215   # 额外测真实板端取帧路径
+  python test_vlm_plumbing.py --board 10.176.240.215   # 额外测真实板端取帧路径
   python test_vlm_plumbing.py --service http://127.0.0.1:8097
 """
 

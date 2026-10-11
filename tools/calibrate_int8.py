@@ -4,7 +4,7 @@
 交接文档 v2 §10.3 把它列为待办，但一直没有脚本。上板后：
 
     # 1) 从板端摄像头抓 200 张真实图做校准集（必须在真机位、真光照下抓）
-    python tools/calibrate_int8.py collect --board 192.168.43.44 --count 200
+    python tools/calibrate_int8.py collect --board 10.176.240.215 --count 200
 
     # 2) 打一个自包含包，拷到转换机
     python tools/calibrate_int8.py pack --onnx rk3568/fruit-train/runs/fruit8/weights/best.onnx \
