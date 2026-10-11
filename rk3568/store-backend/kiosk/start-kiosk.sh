@@ -91,11 +91,15 @@ while true; do
     --disable-infobars \
     --disable-session-crashed-bubble \
     --disable-translate \
-    --disable-features=Translate,TranslateUI \
+    --disable-features=Translate,TranslateUI,TranslateRanker,OverscrollHistoryNavigation,OptimizationHints,MediaRouter \
     --autoplay-policy=no-user-gesture-required \
     --check-for-update-interval=31536000 \
     --overscroll-history-navigation=0 \
     --touch-events=enabled \
+    --disable-pinch \
+    --password-store=basic \
+    --disable-component-update \
+    --disable-background-networking \
     --window-position=0,0 \
     "$URL" >>"$LOG" 2>&1
   rc=$?
