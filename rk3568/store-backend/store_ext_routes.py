@@ -804,9 +804,19 @@ class ExtRouter(object):
             request_id=int(request_id) if request_id else None,
             order_id=int(order_id) if order_id else None)
         if not ok:
-            return json_reply({"ok": False, "message": message, "paid": False}, 404)
-        return json_reply({"ok": True, "message": message, "status": data["status"],
-                           "paid": data["status"] == "PAID", "request": data})
+            return json_reply({"ok": False, "message": message,
+                               "paid": False, "confirmed": False}, 404)
+        # ⚠️ `confirmed` 是**原版字段**，页面 `startPayPolling()` 判的就是它：
+        #       if(d.confirmed){ ...支付成功... }
+        # 原版语义（WebServer.cpp `/api/pay-status` → `Product_IsPending`）是
+        # 「手机端已点确认支付、等收银台收尾」，对应到这边就是**存在付款请求**
+        # （WAITING/PAID 都算），而不是订单已 finalize。
+        # 只返回 `paid` 会让顾客端永远看不到成功 → 白等 60 次轮询后报「支付超时」。
+        status = data["status"]
+        return json_reply({"ok": True, "message": message, "status": status,
+                           "paid": status == "PAID",
+                           "confirmed": status in ("WAITING", "PAID"),
+                           "request": data})
 
     def h_pay_confirm(self, req):
         request_id = req.arg("request_id", "id")
@@ -825,8 +835,13 @@ class ExtRouter(object):
         ok, message = self.store.confirm_order(order_id, req.arg("method"))
         if not ok:
             return json_reply({"ok": False, "message": message, "msg": message}, 400)
+        # 原版 Product_ConfirmOrder 会同时清掉 orderPending；这里对应把该订单
+        # 还在 WAITING 的付款请求一并置 PAID，别让 pay-status 长期自相矛盾。
+        settled = self.ext.settle_pay_requests(order_id)
         payload = {"ok": True, "message": message, "msg": message,
                    "order_id": order_id, "orderId": order_id}
+        if settled:
+            payload["settled_pay_requests"] = settled
         if warning:
             payload["warning"] = warning
         return json_reply(payload)

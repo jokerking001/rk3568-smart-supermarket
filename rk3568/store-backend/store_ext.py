@@ -1404,6 +1404,23 @@ class StoreExt(object):
                 data["status"] = "EXPIRED"
             return True, "查询成功", data
 
+    def settle_pay_requests(self, order_id):
+        """把某订单下仍在 WAITING 的付款请求一并标为 PAID，返回受影响行数。
+
+        对应原版 `Product_ConfirmOrder()` 里顺手把 `orderPending` 清掉那一步。
+        收银台一旦确认收款，付款请求就不该继续停在 WAITING —— 否则
+        `pay-status` 会长期自相矛盾（订单已付 / 请求待付），下面
+        `pay_confirm()` 里那段「状态不一致，修掉而不是重复收款」的兜底
+        正是被这个缺口逼出来的。在这里一次性堵上。
+        """
+        with self.lock:
+            with self.conn:
+                cursor = self.conn.execute(
+                    "UPDATE pay_requests SET status='PAID', paid_at=? "
+                    "WHERE order_id=? AND status='WAITING'",
+                    (now_iso(), order_id))
+                return cursor.rowcount
+
     def pay_confirm(self, payload):
         """确认收到钱。**这里必须先查真实支付结果再确认，不能只信调用方。**"""
         request_id = payload.get("request_id")
