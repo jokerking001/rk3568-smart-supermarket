@@ -8,7 +8,12 @@
 #include "Slave_Link.h"
 #endif
 
+// DHT22 编译开关见 Slave_Config.h（现场未接线时置 0）。
+// 关掉后：不构造对象、不初始化、不轮询 —— 串口也不会再每 60 秒刷
+// 「[警告] DHT22 读取失败」，避免把「没接」误读成「坏了」。
+#if ENABLE_DHT22
 DHT dht(DHT_PIN, DHT_TYPE);
+#endif
 
 // 缓存数据
 float currentTemp = 0.0;
@@ -18,24 +23,36 @@ unsigned long previousMillis = 0;
 //   从机模式：跟着 Slave_Config.h 的 SLAVE_ENV_INTERVAL_MS（60s），
 //             别在两处各写一个数字，改一处漏一处就静默不同步了。
 //   主控模式：维持原值 60s（原工程这个数只用于串口打印）。
+#if ENABLE_DHT22
 #if SLAVE_MODE
 const long interval = SLAVE_ENV_INTERVAL_MS;
 #else
 const long interval = 60000;
 #endif
+#endif
 
 // 初始化模块
 void Plus_Init()
 {
+#if ENABLE_DHT22
     dht.begin();
     Serial.println("DHT22 初始化完成...");
+#else
+    // 明确打一行。原来的「DHT22 初始化完成」是骗人的 —— dht.begin()
+    // 不验证硬件，没接线也照样打印。这里直接说清楚是「按配置禁用」。
+    Serial.println("DHT22 已禁用（ENABLE_DHT22=0，硬件未接线）");
+#endif
 }
 
 // 一次性打印测试 (供 setup 调用)
 void Plus_PrintTest()
 {
     Serial.println("====== 温湿度传感器一次性测试 ======");
-    
+#if !ENABLE_DHT22
+    Serial.println("已禁用（ENABLE_DHT22=0），跳过。");
+    Serial.println("==================================");
+    return;
+#else
     // 强制读取一次
     float h = dht.readHumidity();
     float t = dht.readTemperature();
@@ -55,14 +72,19 @@ void Plus_PrintTest()
         Serial.println(" %");
     }
     Serial.println("==================================");
+#endif
 }
 
 // 循环非阻塞读取 (供 loop 调用)
 void DHT22_HandleLoop()
 {
+#if !ENABLE_DHT22
+    // 硬件未接线：直接返回，不读、不报、不刷日志。
+    return;
+#else
     unsigned long currentMillis = millis();
     
-    // 检查是否经过了 10 秒 (interval 现已改为 10000)
+    // 检查是否经过了 interval
     if (currentMillis - previousMillis >= interval)
     {
         previousMillis = currentMillis;
@@ -80,7 +102,7 @@ void DHT22_HandleLoop()
         currentTemp = t;
         currentHum = h;
         
-        // 每 10 秒通过串口发送一次数据
+        // 通过串口发送一次数据
         Serial.printf("实时数据发送 -> 温度: %.1f°C, 湿度: %.1f%%\n", currentTemp, currentHum);
 
 #if SLAVE_MODE
@@ -90,6 +112,7 @@ void DHT22_HandleLoop()
         SlaveLink_PostEnv(currentTemp, currentHum);
 #endif
     }
+#endif
 }
 
 // 获取当前温度
