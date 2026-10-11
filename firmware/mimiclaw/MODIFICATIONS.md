@@ -77,6 +77,47 @@ cp mimi_secrets.h.example mimi_secrets.h
 | `MIMI_SECRET_STATIC_IP` / `_NETMASK` / `_GATEWAY` | 可选，固定 IP |
 | `MIMI_SECRET_TG_TOKEN`、`MIMI_SECRET_SEARCH_KEY`、`MIMI_SECRET_TAVILY_KEY` | 上游原有的可选项 |
 
+### 飞书通道：走 WebSocket 长连接，**不是** 18790 webhook
+
+上游文档 `docs/im-integration/FEISHU_SETUP.md` 描述的是「ESP32 开 18790 收飞书
+事件回调」的 webhook 方案，但**当前代码不是这么实现的**：
+
+- `main/channels/feishu/feishu_bot.c` 的 `feishu_bot_start()` 起的是 `feishu_ws_task`：
+  先拉 `https://open.feishu.cn/callback/ws/endpoint` 拿长连接地址，再用
+  `esp_websocket_client` 建立 **WebSocket 长连接**收事件。
+- `MIMI_FEISHU_WEBHOOK_PORT`(18790) / `MIMI_FEISHU_WEBHOOK_PATH` 在 `mimi_config.h`
+  里仍有定义，但**全工程没有任何 `.c` 使用它们** —— HTTP webhook server 并未实现。
+
+**所以「18790 不监听」是正常的，不是故障。** 2026-10-11 实测：
+18789（顾客端 WS）与 18791（告警）在听，18790 `ConnectionRefused`。
+
+凭据配好即可用（见上表 `MIMI_SECRET_FEISHU_APP_ID` / `_APP_SECRET`）；
+`MIMI_ALERT_FEISHU_CHAT_ID` 是 18791 告警要发到哪个会话。
+
+⚠️ `main/channels/feishu/feishu_bot.h` 第 12 行的注释仍写
+"Listens on MIMI_FEISHU_WEBHOOK_PORT" —— 是**过时注释**，别被它带偏。
+
+### ⚠️ 已知安全风险：配置页 `/config` 无鉴权回**明文密钥**
+
+`main/onboard/wifi_onboard.c` 的 `http_get_config()` 把**明文**的 Wi-Fi 密码、
+LLM API key、飞书 App Secret、TG token 直接以 JSON 返回，而 `/config`(GET)
+与 `/save`(POST) **都没有任何鉴权**。HTTP 服务在 `MIMI_ONBOARD_HTTP_PORT`(80)，
+只要设备在网，同网段任何人 `curl http://<IP>/config` 就能拿到全部凭据；
+`POST /save` 还能改配置。
+
+**2026-10-11 实测确认**：`curl http://10.176.240.100/config` 直接返回明文。
+
+修复方向（三选一，都需改固件 + 重新编译烧录）：
+
+1. **最小改动**：`http_get_config` 对密钥类字段只回「是否已配置」（或 `cli_****`
+   掩码）。⚠️ 必须**三处一起改** —— `onboard_html.h` 的表单回填要跳过掩码值、
+   `nvs_sync_field` 遇掩码不写。**只改一处会让「点保存」把掩码当成真值写进 NVS，
+   把配置弄坏。**
+2. 给 `/config`、`/save` 加一次性口令（HTTP Basic 或 `?token=`），口令存 NVS。
+3. 只在 **AP 配网模式**（未连上路由器时）开放 `/config`，STA 模式下直接 404。
+
+未修之前：**不要把 MimiClaw 暴露到公网**，也不要在不信任的局域网里开机。
+
 ## 隧道配置
 
 `cloudflared-admin.yml.example` 是外网访问的配置模板（把内网服务映射到公网域名）。
