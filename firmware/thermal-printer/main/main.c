@@ -40,6 +40,15 @@
 #define BYTES_PER_ROW (PRINT_WIDTH / 8)
 #define MAX_JOB_HEIGHT 2400
 #define HEAT_PULSE_US 2200
+/* 六路 strobe 是**串行**点亮的（见 print_row），一行要 6 * HEAT_PULSE_US。
+ * VH 母线的滤波电容会在串行放电中逐步跌落，导致越靠后的 strobe 组
+ * （= 纸面越靠右的 64 点）加热能量越低 —— 实测表现为「左深右浅」的横向梯度。
+ * 两个补偿参数：
+ *   STROBE_SETTLE_US  —— 每组脉冲之间留出的补电间隔，让 VH 电容回充；
+ *   HEAT_PULSE_RAMP_US —— 后段组的脉宽补偿，group 越大给得越长。
+ * 两者都设 0 即退回原来的行为。 */
+#define STROBE_SETTLE_US 300
+#define HEAT_PULSE_RAMP_US 120
 #define MOTOR_STEPS_PER_ROW 2
 #define PAPER_PRESENT_LEVEL 0
 #define REQUIRE_PAPER_SENSOR_FOR_PRINT 0
@@ -80,6 +89,21 @@ static void outputs_safe(void)
     gpio_set_level(PIN_MOTOR_2, 0);
     gpio_set_level(PIN_MOTOR_3, 0);
     gpio_set_level(PIN_MOTOR_4, 0);
+}
+
+/* 串行点亮六路 strobe，并对「后段组电压被拉低」做补偿：
+ * 每组之间留 STROBE_SETTLE_US 给 VH 电容回充，且 group 越大脉宽越长。 */
+static void heat_strobes_sequential(void)
+{
+    const size_t groups = sizeof(strobes) / sizeof(strobes[0]);
+    for (size_t group = 0; group < groups; ++group) {
+        gpio_set_level(strobes[group], 1);
+        esp_rom_delay_us(HEAT_PULSE_US + (uint32_t)group * HEAT_PULSE_RAMP_US);
+        gpio_set_level(strobes[group], 0);
+        if (group + 1 < groups) {
+            esp_rom_delay_us(STROBE_SETTLE_US);
+        }
+    }
 }
 
 static void hardware_init(void)
@@ -391,11 +415,7 @@ static bool print_row(const uint8_t row[BYTES_PER_ROW], uint32_t row_number)
 
     shift_row(row);
     if (row_has_black(row)) {
-        for (size_t group = 0; group < sizeof(strobes) / sizeof(strobes[0]); ++group) {
-            gpio_set_level(strobes[group], 1);
-            esp_rom_delay_us(HEAT_PULSE_US);
-            gpio_set_level(strobes[group], 0);
-        }
+        heat_strobes_sequential();
     }
     uint32_t first_step = row_number * MOTOR_STEPS_PER_ROW;
     for (uint32_t step = 0; step < MOTOR_STEPS_PER_ROW; ++step) {
