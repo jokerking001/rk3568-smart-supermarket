@@ -927,7 +927,15 @@ function drawPrintDocument(title,lines,maxHeight){
   });
   var height=Math.min(maxHeight||480,480);
   var canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
-  var ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,width,height);ctx.fillStyle='#000';
+  // ⚠️ 必须 willReadFrequently:true —— 强制这个 canvas 走**软件**后端。
+  // 板端 chromium 用 --use-gl=egl + Mali GPU，默认 canvas 是 GPU 后端的；
+  // canvasToPrinterJob() 里的 getImageData() 会触发一次 GPU→CPU 回读，
+  // 实测会把 GPU 进程搞崩并重启 —— 顾客看到的就是
+  // 「打印完后页面退出全屏、然后马上又进全屏」（GPU 进程重启 → 合成器重建 →
+  // openbox 短暂取消 kiosk 全屏）。加了这个标志后 getImageData 全在内存里做，
+  // 既不再碰 GPU，也快得多。
+  var ctx=canvas.getContext('2d',{willReadFrequently:true});
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,width,height);ctx.fillStyle='#000';
   ctx.textBaseline='top';ctx.textAlign='center';ctx.font='bold 32px "Microsoft YaHei","PingFang SC",sans-serif';ctx.fillText(title,width/2,10);
   ctx.fillRect(left,52,right-left,2);ctx.textAlign='left';ctx.font='23px "Microsoft YaHei","PingFang SC",sans-serif';
   var y=64;wrapped.forEach(function(line){if(y+lineHeight<=height-6){ctx.fillText(line,left,y);y+=lineHeight;}});
