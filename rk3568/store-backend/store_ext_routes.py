@@ -1343,12 +1343,20 @@ ROUTES = (
     ("POST", "/api/admin/delete-user", "delete_user", "admin"),
 
     # ---- 会员 / RFID
+    # ⚠️ lookup / register / add-points / bind-rfid 这四条**必须是 open**：
+    #   它们全由顾客端页面 web/index.html（`/` 与 `/customer` 以 open 提供，
+    #   标题「智慧超市 - 顾客端」）发起 —— 自助注册会员、刷 RFID 查会员、
+    #   结算后加积分、把卡绑到会员上。顾客端**没有也不该有**收银员会话。
+    #   2026-10-12 实测：匿名请求这四条一律 401「未登录或会话已过期」，
+    #   而且顾客端要么只弹一句含糊提示（打印），要么被空 catch 吞掉
+    #   （加积分），所以一直没人发现。
+    #   list / delete 保持受限：它们给后台用，会列出/删除全部会员，别开放。
     ("GET", "/api/member/list", "member_list", "read"),
-    ("GET", "/api/member/lookup", "member_lookup", "read"),
-    ("POST", "/api/member/register", "member_register", "write"),
-    ("POST", "/api/member/add-points", "member_add_points", "write"),
+    ("GET", "/api/member/lookup", "member_lookup", "open"),
+    ("POST", "/api/member/register", "member_register", "open"),
+    ("POST", "/api/member/add-points", "member_add_points", "open"),
     ("POST", "/api/member/delete", "member_delete", "admin"),
-    ("POST", "/api/member/bind-rfid", "member_bind_rfid", "write"),
+    ("POST", "/api/member/bind-rfid", "member_bind_rfid", "open"),
     ("POST", "/api/member/unbind-rfid", "member_unbind_rfid", "write"),
     ("GET", "/api/member/rfid-poll", "rfid_poll", "open"),
     ("GET", "/api/rfid-poll", "rfid_poll", "open"),
@@ -1370,7 +1378,13 @@ ROUTES = (
     ("GET", "/api/admin/proposals", "list_proposals", "read"),
 
     # ---- 打印队列
-    ("POST", "/api/printer/submit", "printer_submit", "write"),
+    # ⚠️ submit 必须是 open：小票打印是**顾客自助结算流程的一环**，
+    #   发起方是顾客端 web/index.html（无会话）。原先是 `write`，
+    #   于是每次结算都 401，前端 `if(!d.ok)` 把它吞成「小票打印队列繁忙」——
+    #   2026-10-12 顾客实拍报障就是这个（用 curl 匿名 POST 复现 HTTP 401）。
+    #   另外三条（job-meta / job / ack）是打印机固件主动来取的，走 device
+    #   令牌鉴权，保持不变。
+    ("POST", "/api/printer/submit", "printer_submit", "open"),
     ("GET", "/api/printer/job-meta", "printer_job_meta", "device"),
     ("GET", "/api/printer/job", "printer_job", "device"),
     ("POST", "/api/printer/ack", "printer_ack", "device"),

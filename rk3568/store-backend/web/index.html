@@ -15,12 +15,18 @@
 html { scrollbar-width: none; }
 ::-webkit-scrollbar { width: 0; height: 0; background: transparent; }
 body {
-  /* 字体栈顺序有讲究：'DejaVu Sans'/'WenQuanYi Zen Hei' 必须排在 emoji 字体之前。
-     OpenMoji 与 Noto Color Emoji 的 charset 里都声明包含 ASCII 数字 0-9
-     （emoji keycap 0️⃣ 需要数字做基础字符），板端又没有 Segoe UI / PingFang SC /
-     Microsoft YaHei，于是数字会被交给 emoji 字体渲染，而它们没有数字字形，
-     就显示成方框。把普通字体插在前面，数字/中文走正常字体，emoji 仍走 OpenMoji。 */
-  font-family: 'Segoe UI','PingFang SC','Microsoft YaHei','DejaVu Sans','WenQuanYi Zen Hei',OpenMoji,Symbola,'Noto Color Emoji','Apple Color Emoji','Segoe UI Emoji',sans-serif;
+  /* 字体栈顺序有讲究，下面两件事必须同时成立：
+     ① 'DejaVu Sans'/'WenQuanYi Zen Hei' 必须排在**所有 emoji 字体之前**。
+        OpenMoji 与 Noto Color Emoji 的 charset 里都声明包含 ASCII 数字 0-9
+        （emoji keycap 0️⃣ 需要数字做基础字符），板端又没有 Segoe UI / PingFang SC /
+        Microsoft YaHei，于是数字会被交给 emoji 字体渲染，而它们没有数字字形，
+        就显示成方框 ☒。
+     ② 'Noto Color Emoji' 必须排在 OpenMoji / Symbola **之前**。
+        后两者是**黑白**字体：几何类 emoji（🟢 U+1F7E2、🔵 U+1F535）它们画不出
+        彩色字形，会变成空白或实心色块。Noto Color Emoji 是彩色位图字体，
+        2026-10-12 实测覆盖本应用用到的全部 emoji。
+     ⇒ 普通字体在前（吃数字/中文），彩色 emoji 字体紧随其后，黑白字体只做兜底。 */
+  font-family: 'Segoe UI','PingFang SC','Microsoft YaHei','DejaVu Sans','WenQuanYi Zen Hei','Noto Color Emoji',Symbola,OpenMoji,'Apple Color Emoji','Segoe UI Emoji',sans-serif;
   background: linear-gradient(-45deg, #1e40af, #0369a1, #0ea5e9, #0e7490, #1e40af);
   background-size: 400% 400%; animation: gradientBg 15s ease infinite;
   min-height: 100vh; padding-bottom: 60px; overflow-x: hidden; color: #fff;
@@ -94,7 +100,12 @@ body {
   border-radius: 14px; padding: 14px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; transition: 0.3s;
 }
 .cart-item:hover { background: rgba(255,255,255,0.15); transform: translateX(2px); }
-.cart-item .icon { font-size: 32px; flex-shrink: 0; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.15)); }
+/* ⚠️ 这里的图标**不要**加 filter:drop-shadow()。
+   板端 Chromium 91 走 --use-gl=egl + Mali GPU：给「彩色位图 emoji」所在的元素
+   加 filter 会为它单建一个合成层，而该层背景在这套驱动上渲染不出来 ——
+   整块变成**实心黑方块**（emoji 字形本身还画在黑块上面，所以能看到一个白影子），
+   并且会随运行时间推移逐渐增多（先 1 个后 2 个）。2026-10-12 顾客端实拍截图实锤。 */
+.cart-item .icon { font-size: 32px; flex-shrink: 0; }
 .cart-item .info { flex: 1; }
 .cart-item .name { font-size: 15px; font-weight: 600; color: #fff; margin-bottom: 4px; }
 .cart-item .price { font-size: 18px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
@@ -257,7 +268,7 @@ body {
 .subtitle-overlay.show { transform: translateX(-50%) translateY(0); opacity: 1; }
 .sub-row { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 8px; width: 100%; }
 .sub-row:last-child { margin-bottom: 0; }
-.sub-icon { font-size: 20px; line-height: 1.2; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); flex-shrink: 0; }
+.sub-icon { font-size: 20px; line-height: 1.2; flex-shrink: 0; }
 .sub-text-q { font-size: 15px; color: #fff; font-weight: 700; line-height: 1.5; flex: 1; word-break: break-word; white-space: pre-wrap; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
 .sub-text-a { font-size: 15px; color: #e0f2fe; font-weight: 400; line-height: 1.6; flex: 1; word-break: break-word; white-space: pre-wrap; }
 
@@ -530,7 +541,7 @@ async function doRegister(){
   var d=await r.json();
   if(d.ok){
     var h='<div style="text-align:center;">';
-    h+='<div style="font-size:48px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">🎫</div>';
+    h+='<div style="font-size:48px;">🎫</div>';
     h+='<h3 style="color:#fff; margin:10px 0;">'+name+'，注册成功</h3>';
     h+='<p style="color:rgba(255,255,255,0.8); margin:8px 0">您的会员专属码：<br><b style="font-size:22px;color:#fff;">'+d.qr+'</b></p>';
     h+='<div style="background:#fff; padding:10px; border-radius:16px; display:inline-block; margin:8px 0;"><iframe src="/qr-svg?text='+encodeURIComponent(d.qr)+'" style="width:180px;height:180px;border:none;display:block"></iframe></div>';
@@ -724,9 +735,15 @@ function openCheckout(){
   h+='<div class="order-total-row"><span>支付合计</span><span class="price">¥'+total.toFixed(2)+(memberDisc>0?'<br><span style="font-size:12px;color:#fff;display:block;text-align:right;">(已优惠¥'+memberDisc.toFixed(2)+')</span>':'')+'</span></div>';
   h+='<div style="font-size:13px;color:rgba(255,255,255,0.6);margin-bottom:8px">选择结账方式</div>';
   h+='<div class="pay-methods">';
+  // ⚠️ 支付图标只能用「Noto Color Emoji 里有字形」的 emoji。
+  // 原先是 🟢(U+1F7E2) / 🔵(U+1F535)：U+1F7E2 是 Unicode 12.0 才加的，
+  // 板端 Noto Color Emoji 版本较旧**没有**它，只有黑白字体 OpenMoji 覆盖，
+  // 于是微信图标画不出来（支付宝的 U+1F535 同理被黑白字体抢走）。
+  // 换成 💚(U+1F49A) / 💙(U+1F499)：两者都在 Noto Color Emoji 里，
+  // 且颜色正好对应微信绿 / 支付宝蓝。2026-10-12 用 fc-list 逐码位核验过。
   h+='<div class="pay-method active" onclick="selectPay(this,&apos;cash&apos;)"><span class="icon">💵</span>现金支付</div>';
-  h+='<div class="pay-method" onclick="selectPay(this,&apos;wx&apos;)"><span class="icon">🟢</span>微信扫码</div>';
-  h+='<div class="pay-method" onclick="selectPay(this,&apos;alipay&apos;)"><span class="icon">🔵</span>支付宝扫码</div>';
+  h+='<div class="pay-method" onclick="selectPay(this,&apos;wx&apos;)"><span class="icon">💚</span>微信扫码</div>';
+  h+='<div class="pay-method" onclick="selectPay(this,&apos;alipay&apos;)"><span class="icon">💙</span>支付宝扫码</div>';
   h+='</div>';
   h+='<div class="btn-row"><button class="btn-pay secondary" onclick="closeCheckout()">返回修改</button>';
   h+='<button class="btn-pay primary" onclick="doCheckout()">确 认 付 款</button></div>';
@@ -834,7 +851,7 @@ function manualConfirm(){if(payPollTimer)clearInterval(payPollTimer);confirmPayA
 
 function showPaySuccess(){
   queueReceiptPrint();
-  var methodNames={cash:'💵 现金支付',wx:'🟢 微信支付',alipay:'🔵 支付宝'};
+  var methodNames={cash:'💵 现金支付',wx:'💚 微信支付',alipay:'💙 支付宝'};
   var now=new Date();
   var timeStr=now.getFullYear()+'-'+(now.getMonth()+1).toString().padStart(2,'0')+'-'+now.getDate().toString().padStart(2,'0')+' '+now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0')+':'+now.getSeconds().toString().padStart(2,'0');
   
@@ -960,7 +977,7 @@ function renderWeighProducts(){
   var h='';
   weighProducts.forEach(function(p,i){
     h+='<div class="weigh-item-card" onclick="selectWeighItem('+i+')" id="wp-'+i+'">';
-    h+='<div style="font-size:36px; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.15));">'+p.icon+'</div>';
+    h+='<div style="font-size:36px;">'+p.icon+'</div>';
     h+='<div style="font-size:14px; font-weight:700; color:#fff; margin-top:8px;">'+p.name+'</div>';
     h+='<div style="font-size:12px; color:#06b6d4; margin-top:4px; font-weight:600;">¥'+p.price.toFixed(2)+'<span style="color:rgba(255,255,255,0.6)">/500g</span></div>';
     h+='</div>';
@@ -992,33 +1009,45 @@ function updateWeighTotal(){
   }
 }
 
+// 称重轮询：150ms 一拍（后端就在本机，单次约 15ms，这点压力可忽略）。
+// 原先是 300ms 一拍，而且**还自己另算了一套**「连续 5 拍极差 ≤3g」的稳定判据 ——
+// 后端 /api/weight 已经给了 stable（5 样本、极差 ≤4g、1500ms 内新鲜），
+// 前端再算一遍等于在稳定判定上**又叠 1.5 秒延迟**，两边口径还不一致。
+// 现在稳定与否直接采信后端，前端只负责「把数字画顺」。
+var _weighBusy=false;   // 上一拍没回来就跳过，避免请求堆积（WiFi 抖动时尤其重要）
+var _weighShown=0;      // 屏幕上正在显示的重量（做过缓动，仅用于显示）
+
 function startWeighPoll(){
   stopWeighPoll();
   weighProducts=allProducts.filter(function(p){return p.isWeigh;});
   if(weighProducts.length===0)weighProducts=[{name:'散装糖果',price:18,icon:'🍬'},{name:'散装坚果',price:25,icon:'🥜'}];
   renderWeighProducts();
-  weighPollTimer=setInterval(async function(){
-    try{
-      var r=await fetch('/api/weight');
-      var d=await r.json();
-      if(!d.ok)return;
-      currentWeight=d.weight_g;
-      document.getElementById('weighValue').textContent=currentWeight.toFixed(1);
-      lastStableWeights.push(currentWeight);
-      if(lastStableWeights.length>10)lastStableWeights.shift();
-      var stable=true;
-      if(lastStableWeights.length>=5){
-        for(var i=1;i<lastStableWeights.length;i++){
-          if(Math.abs(lastStableWeights[i]-lastStableWeights[i-1])>3){stable=false;break;}
-        }
-      }
-      var st=document.getElementById('weighStatus');
-      if(currentWeight<2){st.textContent='等待放置物品...';st.style.color='rgba(255,255,255,0.5)';}
-      else if(!stable){st.innerHTML='<span class="scan-dot" style="background:#fff;box-shadow:0 0 8px #fff;"></span>正在精确计算中...';st.style.color='#fff';}
-      else{st.textContent='✓ 重量已稳定锁定';st.style.color='#fff';}
-      updateWeighTotal();
-    }catch(e){}
-  },300);
+  _weighShown=0;
+  weighPollTimer=setInterval(weighTick,150);
+}
+
+async function weighTick(){
+  if(_weighBusy)return;
+  _weighBusy=true;
+  try{
+    var r=await fetch('/api/weight?t='+Date.now(),{cache:'no-store'});
+    var d=await r.json();
+    // 后端 ok=false 表示「样本不足 5 个 / 样本已过期」，等价于托盘上没有可读重量。
+    // 原代码这里直接 return，会把上一次的数字一直挂在屏上不动，看着像卡死。
+    var raw=(d.ok && typeof d.weight_g==='number' && d.weight_g>0)?d.weight_g:0;
+    currentWeight=raw;   // 计价用真值，不做缓动
+    // 后端给的是 8 样本滑动平均，本身就会台阶式跳变；这里每拍只走 40% 的差，
+    // 视觉上就连续了。差值小于 0.05g 时直接贴合，避免永远逼近不到。
+    _weighShown+=(raw-_weighShown)*0.4;
+    if(Math.abs(raw-_weighShown)<0.05)_weighShown=raw;
+    document.getElementById('weighValue').textContent=_weighShown.toFixed(1);
+    var st=document.getElementById('weighStatus');
+    if(raw<2){st.textContent='等待放置物品...';st.style.color='rgba(255,255,255,0.5)';}
+    else if(!d.stable){st.innerHTML='<span class="scan-dot" style="background:#fff;box-shadow:0 0 8px #fff;"></span>正在精确计算中...';st.style.color='#fff';}
+    else{st.textContent='✓ 重量已稳定锁定';st.style.color='#fff';}
+    updateWeighTotal();
+  }catch(e){}
+  _weighBusy=false;
 }
 
 function stopWeighPoll(){
@@ -1034,7 +1063,7 @@ function weighAddToCart(){
   productMap[wcode]=allProducts[allProducts.length-1];
   addToCart(wcode);
   showToast('✅ 成功加入: '+label+' (¥'+total.toFixed(2)+')','ok');
-  selectedWeighItem=null;currentWeight=0;lastStableWeights=[];
+  selectedWeighItem=null;currentWeight=0;_weighShown=0;lastStableWeights=[];
   document.querySelectorAll('[id^="wp-"]').forEach(function(el){el.classList.remove('active')});
   document.getElementById('weighItemName').textContent='未选择商品';
   document.getElementById('weighPrice').textContent='¥0.00';

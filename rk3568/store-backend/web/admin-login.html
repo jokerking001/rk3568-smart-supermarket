@@ -5,7 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>商家管理中心 - 登录</title>
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+/* 字体栈与顾客端保持同一套规则：普通字体在前（吃数字/中文），'Noto Color Emoji'
+   必须在 OpenMoji/Symbola 之前 —— 后两者是黑白字体，画不出彩色 emoji。
+   板端没有 PingFang SC / Microsoft YaHei，原来只写这两个 + sans-serif，
+   🔐 会落到 fontconfig 兜底字体，颜色不可控。 */
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'PingFang SC', 'Microsoft YaHei', 'DejaVu Sans', 'WenQuanYi Zen Hei', 'Noto Color Emoji', Symbola, OpenMoji, sans-serif; }
 body {
     display: flex; justify-content: center; align-items: center; min-height: 100vh;
     background: linear-gradient(-45deg, #0f172a, #1e1b4b, #2e1065, #0f172a);
@@ -26,7 +30,9 @@ body {
     box-shadow: 0 25px 45px rgba(0, 0, 0, 0.2); z-index: 10; text-align: center;
 }
 
-.icon { font-size: 42px; margin-bottom: 10px; filter: drop-shadow(0 0 10px rgba(59,130,246,0.8)); }
+/* ⚠️ 不要加 filter:drop-shadow()：彩色位图 emoji + filter 在板端 Mali/EGL 上
+   会变成实心黑方块（同 web/index.html 的坑，2026-10-12 实拍确认）。 */
+.icon { font-size: 42px; margin-bottom: 10px; }
 .title { font-size: 24px; font-weight: 700; color: #fff; margin-bottom: 5px; letter-spacing: 1px; }
 .sub { font-size: 13px; color: rgba(255,255,255,0.5); margin-bottom: 24px; }
 

@@ -7,10 +7,12 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 /* B端暗黑数据看板主题 */
-/* 字体栈：'DejaVu Sans'/'WenQuanYi Zen Hei' 必须排在 OpenMoji / Noto Color Emoji 之前。
-   这两个 emoji 字体的 charset 都声明包含 ASCII 数字 0-9（keycap 需要），板端没有
-   Inter/PingFang SC/Microsoft YaHei，数字会被交给 emoji 字体 → 显示成方框。 */
-body{font-family:'Inter','PingFang SC','Microsoft YaHei','DejaVu Sans','WenQuanYi Zen Hei',OpenMoji,Symbola,'Noto Color Emoji','Apple Color Emoji','Segoe UI Emoji',sans-serif;background:#0B1437;color:#FFFFFF;overflow:hidden;width:100vw;height:100vh;cursor:pointer}
+/* 字体栈两件事：① 'DejaVu Sans'/'WenQuanYi Zen Hei' 必须排在**所有 emoji 字体之前** ——
+   emoji 字体的 charset 都声明包含 ASCII 数字 0-9（keycap 需要），板端没有
+   Inter/PingFang SC/Microsoft YaHei，数字会被交给 emoji 字体 → 显示成方框。
+   ② 'Noto Color Emoji' 必须排在 OpenMoji/Symbola **之前** —— 后两者是黑白字体，
+   画不出彩色 emoji；Noto Color Emoji 才是彩色位图字体。 */
+body{font-family:'Inter','PingFang SC','Microsoft YaHei','DejaVu Sans','WenQuanYi Zen Hei','Noto Color Emoji',Symbola,OpenMoji,'Apple Color Emoji','Segoe UI Emoji',sans-serif;background:#0B1437;color:#FFFFFF;overflow:hidden;width:100vw;height:100vh;cursor:pointer}
 
 .slide{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;transition:opacity 0.8s;padding:60px;padding-bottom:120px;}
 .slide.active{opacity:1}
@@ -27,7 +29,10 @@ body{font-family:'Inter','PingFang SC','Microsoft YaHei','DejaVu Sans','WenQuanY
 /* 热销卡片：深色微透视质感 */
 .rec-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:30px;width:100%;max-width:1400px}
 .rec-card{background:#111C44;border-radius:24px;padding:50px 30px;text-align:center;box-shadow:0 18px 40px rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.05);position:relative}
-.rec-card .icon{font-size:80px;margin-bottom:20px;filter:drop-shadow(0 10px 10px rgba(0,0,0,0.3))}
+/* ⚠️ 不要加 filter:drop-shadow()：板端 Chromium(--use-gl=egl)+Mali GPU 下，
+   给彩色位图 emoji 的元素加 filter 会单建合成层，而该层背景渲染不出来 →
+   整块变**实心黑方块**。与顾客端 web/index.html 是同一个坑（2026-10-12 实拍确认）。 */
+.rec-card .icon{font-size:80px;margin-bottom:20px}
 .rec-card .name{font-size:36px;font-weight:800;margin-bottom:12px;color:#FFFFFF}
 .rec-card .price{font-size:50px;font-weight:900;color:#00E396}
 .rec-card .tag{position:absolute;top:20px;right:20px;background:rgba(117,81,255,0.2);color:#7551FF;padding:6px 16px;border-radius:20px;font-size:18px;font-weight:700}
@@ -165,17 +170,24 @@ function renderHot(){
 }
 
 function renderExpiry(){
-  var now=new Date(),list=[];
+  var list=[];
   products.forEach(function(p){
-    var parts=(p.mfg_date||'').split('-');
-    if(parts.length<3 || !p.name)return;
-    var mfg=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));
-    var exp=new Date(mfg);exp.setMonth(exp.getMonth()+(p.shelf_life||12));
-    var days=Math.ceil((exp-now)/(86400000));
-    if(days<=60&&days>=-30){
-      var discount=days<=30?0.5:0.7;
-      list.push({name:p.name,icon:p.icon,price:p.price,days:days,discount:discount});
+    if(!p.name)return;
+    // 优先用后端给的 expiry_days / expiry_discount（单一数据源，避免前后端各算一套）。
+    // 后端没给才回退到本地推算。
+    var days=p.expiry_days;
+    if(typeof days!=='number'){
+      var parts=(p.mfg_date||'').split('-');
+      if(parts.length<3)return;
+      var mfg=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));
+      var exp=new Date(mfg);exp.setMonth(exp.getMonth()+(p.shelf_life||12));
+      days=Math.ceil((exp-new Date())/(86400000));
     }
+    // 后端已把过期商品从 /api/products 过滤掉，这里再兜一层：过期(负数)绝不上屏
+    if(days<0 || days>60)return;
+    var discount=(typeof p.expiry_discount==='number' && p.expiry_discount>0 && p.expiry_discount<1)
+                 ? p.expiry_discount : (days<=30?0.5:0.7);
+    list.push({name:p.name,icon:p.icon,price:p.price,days:days,discount:discount});
   });
   list.sort(function(a,b){return a.days-b.days;});
   var h='';
