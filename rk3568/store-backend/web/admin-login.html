@@ -5,11 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>商家管理中心 - 登录</title>
 <style>
-/* 字体栈与顾客端保持同一套规则：普通字体在前（吃数字/中文），'Noto Color Emoji'
-   必须在 OpenMoji/Symbola 之前 —— 后两者是黑白字体，画不出彩色 emoji。
+/* 字体栈与顾客端保持同一套规则：普通字体在前（吃数字/中文），OpenMoji 其次。
+   ★ 'Noto Color Emoji' 只能垫底 —— 实测这个 Chromium 不支持它的 CBDT 位图，
+   但它声明拥有这些码位，字体回退「命中即停」，排前面会让 emoji 全变空白。
    板端没有 PingFang SC / Microsoft YaHei，原来只写这两个 + sans-serif，
    🔐 会落到 fontconfig 兜底字体，颜色不可控。 */
-* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'PingFang SC', 'Microsoft YaHei', 'DejaVu Sans', 'WenQuanYi Zen Hei', 'Noto Color Emoji', Symbola, OpenMoji, sans-serif; }
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'PingFang SC', 'Microsoft YaHei', 'DejaVu Sans', 'WenQuanYi Zen Hei', OpenMoji, Symbola, 'Noto Color Emoji', sans-serif; }
 body {
     display: flex; justify-content: center; align-items: center; min-height: 100vh;
     background: linear-gradient(-45deg, #0f172a, #1e1b4b, #2e1065, #0f172a);

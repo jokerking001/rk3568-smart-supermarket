@@ -10,9 +10,10 @@
 /* 字体栈两件事：① 'DejaVu Sans'/'WenQuanYi Zen Hei' 必须排在**所有 emoji 字体之前** ——
    emoji 字体的 charset 都声明包含 ASCII 数字 0-9（keycap 需要），板端没有
    Inter/PingFang SC/Microsoft YaHei，数字会被交给 emoji 字体 → 显示成方框。
-   ② 'Noto Color Emoji' 必须排在 OpenMoji/Symbola **之前** —— 后两者是黑白字体，
-   画不出彩色 emoji；Noto Color Emoji 才是彩色位图字体。 */
-body{font-family:'Inter','PingFang SC','Microsoft YaHei','DejaVu Sans','WenQuanYi Zen Hei','Noto Color Emoji',Symbola,OpenMoji,'Apple Color Emoji','Segoe UI Emoji',sans-serif;background:#0B1437;color:#FFFFFF;overflow:hidden;width:100vw;height:100vh;cursor:pointer}
+   ② ★ 'Noto Color Emoji' 必须排在**最后**，绝不能排在 OpenMoji/Symbola 之前 ——
+   实测这个 Chromium 的 FreeType 不支持它的 CBDT 位图，但它声明拥有这些码位，
+   字体回退「命中即停」→ 它排前面会让**全部 emoji 变空白**（2026-10-12 实测）。 */
+body{font-family:'Inter','PingFang SC','Microsoft YaHei','DejaVu Sans','WenQuanYi Zen Hei',OpenMoji,Symbola,'Noto Color Emoji','Apple Color Emoji','Segoe UI Emoji',sans-serif;background:#0B1437;color:#FFFFFF;overflow:hidden;width:100vw;height:100vh;cursor:pointer}
 
 .slide{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;transition:opacity 0.8s;padding:60px;padding-bottom:120px;}
 .slide.active{opacity:1}

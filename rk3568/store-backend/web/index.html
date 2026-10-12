@@ -21,12 +21,19 @@ body {
         （emoji keycap 0️⃣ 需要数字做基础字符），板端又没有 Segoe UI / PingFang SC /
         Microsoft YaHei，于是数字会被交给 emoji 字体渲染，而它们没有数字字形，
         就显示成方框 ☒。
-     ② 'Noto Color Emoji' 必须排在 OpenMoji / Symbola **之前**。
-        后两者是**黑白**字体：几何类 emoji（🟢 U+1F7E2、🔵 U+1F535）它们画不出
-        彩色字形，会变成空白或实心色块。Noto Color Emoji 是彩色位图字体，
-        2026-10-12 实测覆盖本应用用到的全部 emoji。
-     ⇒ 普通字体在前（吃数字/中文），彩色 emoji 字体紧随其后，黑白字体只做兜底。 */
-  font-family: 'Segoe UI','PingFang SC','Microsoft YaHei','DejaVu Sans','WenQuanYi Zen Hei','Noto Color Emoji',Symbola,OpenMoji,'Apple Color Emoji','Segoe UI Emoji',sans-serif;
+     ② ★ 'Noto Color Emoji' 必须排在**最后**（或干脆不写），绝不能排在
+        OpenMoji / Symbola 之前！2026-10-12 用 canvas 逐字形渲染 + 统计非透明像素实测：
+          · 栈 = "Noto Color Emoji",Symbola,OpenMoji
+            → 现金💵/糖果🍬/花生🥜/相机📷/机器人🤖/购物车🛒/💚/💙 **全部 BLANK**，
+              连数字 0 都是空白；
+          · 栈 = OpenMoji,Symbola,"Noto Color Emoji"
+            → 上述字形**全部正常**（OpenMoji 单色轮廓，跟随文字颜色）。
+        原因：这个 Chromium 的 FreeType **不支持 Noto Color Emoji 的 CBDT 位图**，
+        但该字体**声明拥有这些码位** —— 字体回退「命中即停」，把它当成了能渲染的字体，
+        结果什么都没画出来（**不会**继续回退到下一个字体）。
+        ⇒ 它排前面 = 全屏 emoji 集体消失。
+     ⇒ 结论：普通字体在前（吃数字/中文），OpenMoji 其次，Noto Color Emoji 只能垫底。 */
+  font-family: 'Segoe UI','PingFang SC','Microsoft YaHei','DejaVu Sans','WenQuanYi Zen Hei',OpenMoji,Symbola,'Noto Color Emoji','Apple Color Emoji','Segoe UI Emoji',sans-serif;
   background: linear-gradient(-45deg, #1e40af, #0369a1, #0ea5e9, #0e7490, #1e40af);
   background-size: 400% 400%; animation: gradientBg 15s ease infinite;
   min-height: 100vh; padding-bottom: 60px; overflow-x: hidden; color: #fff;
@@ -735,15 +742,17 @@ function openCheckout(){
   h+='<div class="order-total-row"><span>支付合计</span><span class="price">¥'+total.toFixed(2)+(memberDisc>0?'<br><span style="font-size:12px;color:#fff;display:block;text-align:right;">(已优惠¥'+memberDisc.toFixed(2)+')</span>':'')+'</span></div>';
   h+='<div style="font-size:13px;color:rgba(255,255,255,0.6);margin-bottom:8px">选择结账方式</div>';
   h+='<div class="pay-methods">';
-  // ⚠️ 支付图标只能用「Noto Color Emoji 里有字形」的 emoji。
-  // 原先是 🟢(U+1F7E2) / 🔵(U+1F535)：U+1F7E2 是 Unicode 12.0 才加的，
-  // 板端 Noto Color Emoji 版本较旧**没有**它，只有黑白字体 OpenMoji 覆盖，
-  // 于是微信图标画不出来（支付宝的 U+1F535 同理被黑白字体抢走）。
-  // 换成 💚(U+1F49A) / 💙(U+1F499)：两者都在 Noto Color Emoji 里，
-  // 且颜色正好对应微信绿 / 支付宝蓝。2026-10-12 用 fc-list 逐码位核验过。
+  // ⚠️ 支付图标**不要用 emoji**。这个板子上能画 emoji 的只有 OpenMoji/Symbola，
+  // 而它们是**单色**字体（字形跟随 CSS `color`），画不出「微信绿 / 支付宝蓝」；
+  // 几何类 emoji（🟢 U+1F7E2、🔵 U+1F535）在 OpenMoji 里只是一个细圆环，
+  // 落在深色卡片上几乎看不见 —— 顾客反馈「结算时微信和支付宝图标不见了」就是这个。
+  // 改用 CSS 上色的实心圆点 ●（U+25CF，DejaVu Sans 有字形，排在 OpenMoji 之前），
+  // 颜色即品牌色，完全不依赖 emoji 字体，100% 可见。
+  // 2026-10-12 用 canvas 逐字形渲染实测确认：OpenMoji 系单色，且
+  // 'Noto Color Emoji' 在本机 Chromium 上根本不渲染（详见 body 字体栈注释）。
   h+='<div class="pay-method active" onclick="selectPay(this,&apos;cash&apos;)"><span class="icon">💵</span>现金支付</div>';
-  h+='<div class="pay-method" onclick="selectPay(this,&apos;wx&apos;)"><span class="icon">💚</span>微信扫码</div>';
-  h+='<div class="pay-method" onclick="selectPay(this,&apos;alipay&apos;)"><span class="icon">💙</span>支付宝扫码</div>';
+  h+='<div class="pay-method" onclick="selectPay(this,&apos;wx&apos;)"><span class="icon" style="color:#07C160">●</span>微信扫码</div>';
+  h+='<div class="pay-method" onclick="selectPay(this,&apos;alipay&apos;)"><span class="icon" style="color:#1677FF">●</span>支付宝扫码</div>';
   h+='</div>';
   h+='<div class="btn-row"><button class="btn-pay secondary" onclick="closeCheckout()">返回修改</button>';
   h+='<button class="btn-pay primary" onclick="doCheckout()">确 认 付 款</button></div>';
@@ -851,7 +860,8 @@ function manualConfirm(){if(payPollTimer)clearInterval(payPollTimer);confirmPayA
 
 function showPaySuccess(){
   queueReceiptPrint();
-  var methodNames={cash:'💵 现金支付',wx:'💚 微信支付',alipay:'💙 支付宝'};
+  // 这里只是「支付成功」页的一行文案，别放几何类 emoji（同上的单色问题）。
+  var methodNames={cash:'💵 现金支付',wx:'微信支付',alipay:'支付宝'};
   var now=new Date();
   var timeStr=now.getFullYear()+'-'+(now.getMonth()+1).toString().padStart(2,'0')+'-'+now.getDate().toString().padStart(2,'0')+' '+now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0')+':'+now.getSeconds().toString().padStart(2,'0');
   
