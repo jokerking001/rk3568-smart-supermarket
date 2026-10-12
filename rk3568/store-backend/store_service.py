@@ -94,6 +94,70 @@ def _icon_for(category, name):
     return "\U0001F4E6"           # 箱子
 
 
+# --------------------------------------------------------------------- 临期折扣
+# ⚠️ 这套规则必须和前端 web/index.html 的 getExpiryDiscount() **逐字一致**。
+#    2026-10-11 的真实故障：前端按临期 5 折算出 2.25，后端只认原价 4.5，
+#    校验对不上 → 顾客结算被拒，而且提示被吞成「订单通道拥挤，请重试」，
+#    从界面上完全看不出是折扣口径不一致。改这里就必须同步改前端。
+EXPIRY_NEAR_DAYS = 30      # 到期前 30 天内 -> 5 折
+EXPIRY_SOON_DAYS = 60      # 到期前 60 天内 -> 7 折
+EXPIRY_NEAR_DISCOUNT = 0.5
+EXPIRY_SOON_DISCOUNT = 0.7
+
+
+def expiry_days(row):
+    """距到期还剩几天；没有生产日期/保质期信息时返回 ``None``。
+
+    到期日 = 生产日期 + ``shelf_life`` 个月。加月时若"日"溢出（如 1-31 加一个月），
+    **按 JS ``Date.setMonth`` 的行为向后顺延**，而不是退到月末 —— 否则前后端会
+    在少数日期上算出不同的到期日。
+    """
+    if not row:
+        return None
+    mfg = row.get("mfg_date")
+    shelf = row.get("shelf_life")
+    if not mfg or mfg == "-" or not shelf:
+        return None
+    parts = str(mfg).split("-")
+    if len(parts) < 3:
+        return None
+    try:
+        y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
+        shelf = int(shelf)
+    except (TypeError, ValueError):
+        return None
+    total = (m - 1) + shelf
+    ey, em = y + total // 12, total % 12 + 1
+    if not 1 <= em <= 12:
+        return None
+    try:
+        # 从当月 1 号起加 (d-1) 天 => 溢出时自动顺延到下月，与 JS 一致
+        exp = (datetime(ey, em, 1) + timedelta(days=d - 1)).date()
+    except (ValueError, OverflowError):
+        return None
+    return (exp - datetime.now().date()).days
+
+
+def expiry_discount(row):
+    """临期折扣系数。**返回 0 表示已过期、不可售**。"""
+    days = expiry_days(row)
+    if days is None:
+        return 1.0
+    if days < 0:
+        return 0.0
+    if days <= EXPIRY_NEAR_DAYS:
+        return EXPIRY_NEAR_DISCOUNT
+    if days <= EXPIRY_SOON_DAYS:
+        return EXPIRY_SOON_DISCOUNT
+    return 1.0
+
+
+def is_expired(row):
+    """已过保质期（下架依据）。没有保质期信息的商品**不算过期**。"""
+    days = expiry_days(row)
+    return days is not None and days < 0
+
+
 def decorate_product(row):
     """给商品行补上网页端依赖的 ``qr_code`` / ``icon``（幂等）。
 
@@ -105,6 +169,11 @@ def decorate_product(row):
         row["qr_code"] = row["code"]
     if not row.get("icon"):
         row["icon"] = _icon_for(row.get("category"), row.get("name"))
+    # 临期信息：前端算折扣、后端下单校验都依赖它，这里统一算一次
+    if "expiry_days" not in row:
+        row["expiry_days"] = expiry_days(row)
+    if "expiry_discount" not in row:
+        row["expiry_discount"] = expiry_discount(row)
     return row
 
 SCHEMA = """
@@ -313,7 +382,12 @@ class Store(object):
             self._roll_day(conn)
 
     # --------------------------------------------------------------- catalog
-    def list_products(self, query=None):
+    def list_products(self, query=None, include_expired=False):
+        """商品列表。
+
+        ``include_expired=False``（默认）滤掉**已过保质期**的商品 ——
+        顾客端不该看到、更不该买到过期食品；管理端盘点时传 ``True``。
+        """
         with self.lock:
             if query:
                 like = "%" + query + "%"
@@ -323,12 +397,27 @@ class Store(object):
             else:
                 rows = self._rows(self._conn.execute(
                     "SELECT * FROM products ORDER BY category, name"))
-            return [decorate_product(r) for r in rows]
+            products = [decorate_product(r) for r in rows]
+        if include_expired:
+            return products
+        return [p for p in products
+                if p.get("expiry_days") is None or p["expiry_days"] >= 0]
 
     def find_by_code(self, code):
         with self.lock:
             return decorate_product(self._one(self._conn.execute(
                 "SELECT * FROM products WHERE code=?", (str(code).strip(),))))
+
+    # ---- 临期折扣：暴露给扩展层（store_ext_routes）用，避免循环 import ----
+    # 口径由本模块的 expiry_discount / is_expired 统一定义，前端必须与之一致。
+    def product_expiry_days(self, product):
+        return expiry_days(product)
+
+    def product_expiry_discount(self, product):
+        return expiry_discount(product)
+
+    def product_is_expired(self, product):
+        return is_expired(product)
 
     def find_by_name(self, name):
         with self.lock:
@@ -1116,7 +1205,11 @@ class StoreHandler(BaseHTTPRequestHandler):
             if path == "/api/store/status":
                 return self._json(store.status())
             if path == "/api/products":
-                return self._json(store.list_products(params.get("q") or None))
+                # 默认不给过期商品（顾客端看不到）；管理端盘点要带 ?all=1
+                include_expired = str(params.get("all") or "").lower() in (
+                    "1", "true", "yes")
+                return self._json(store.list_products(
+                    params.get("q") or None, include_expired=include_expired))
             if path == "/api/product":
                 product = store.find_by_code(params.get("code", ""))
                 if not product:

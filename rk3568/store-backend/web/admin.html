@@ -316,7 +316,8 @@ function stockBadge(stock){
 var allProducts=[];
 
 async function loadDashboard(){
-  try{var r=await fetch('/api/products');allProducts=await r.json();}catch(e){return;}
+  // 管理端要能看到过期商品（盘点 / 清理），所以带 all=1
+  try{var r=await fetch('/api/products?all=1');allProducts=await r.json();}catch(e){return;}
   var orders=[];
   try{var or=await fetch('/api/order-history');orders=await or.json();}catch(e){}
 

@@ -562,6 +562,7 @@ function getExpiryDiscount(p){
   var mfg=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));
   var exp=new Date(mfg);exp.setMonth(exp.getMonth()+p.shelf_life);
   var days=Math.ceil((exp-new Date())/(86400000));
+  if(days<0)return 0;      // 已过期：不可售（后端也会拦，这里是双保险）
   if(days<=30)return 0.5; 
   if(days<=60)return 0.7; 
   return 1.0; 
@@ -572,6 +573,7 @@ function addToCart(code){
   var p=findProduct(code);
   var existing=cart.find(function(x){return x.code===code;});
   if(!p || p.stock <= (existing ? existing.qty : 0)) return;
+  if(getExpiryDiscount(p)<=0){showToast('该商品已过保质期，已下架','err');return;}
   var f=existing;
   if(f)f.qty++;else cart.push({code:code,qty:1});
   customerMetric('cart');

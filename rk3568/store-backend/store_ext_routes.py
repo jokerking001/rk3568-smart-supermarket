@@ -909,13 +909,24 @@ class ExtRouter(object):
 
         parsed = self._parse_items(items_text)
 
-        # 先算明细合计（口径和 store_service.checkout 保持一致）
+        # 先算明细合计。要同时算两个口径：
+        #   items_plain = 原价合计
+        #   items_total = 应用**临期折扣**后的合计（= 前端口径）
+        # 2026-10-11 的真实故障：这里只算了原价，而前端按临期 5 折报价，
+        # 两边对不上 -> 顾客结算被拒，且提示被吞成「订单通道拥挤」。
+        items_plain = 0.0
         items_total = 0.0
         for code, qty in parsed:
             product = self.store.find_by_code(code)
             if not product:
                 raise BadRequest("商品已下架：%s" % code)
-            items_total += round(float(product["price"]) * qty + 0.0, 2)
+            if self.store.product_is_expired(product):
+                raise BadRequest("商品已过期，不能售卖：%s"
+                                 % (product.get("name") or code))
+            factor = self.store.product_expiry_discount(product)
+            items_plain += round(float(product["price"]) * qty + 0.0, 2)
+            items_total += round(float(product["price"]) * factor * qty + 0.0, 2)
+        items_plain = round(items_plain + 0.0, 2)
         items_total = round(items_total + 0.0, 2)
 
         claimed = req.arg("total")
@@ -925,17 +936,22 @@ class ExtRouter(object):
                 claimed_value = round(float(claimed) + 0.0, 2)
             except (TypeError, ValueError):
                 raise BadRequest("total 不是数字：%r" % claimed)
-            plain = items_total
-            discounted = round(items_total * MEMBER_DISCOUNT + 0.0, 2)
-            if abs(claimed_value - plain) <= TOTAL_TOLERANCE:
-                pass
-            elif abs(claimed_value - discounted) <= TOTAL_TOLERANCE:
+            # 接受四种口径：原价 / 临期价 / 原价×会员 / 临期价×会员
+            member_plain = round(items_plain * MEMBER_DISCOUNT + 0.0, 2)
+            member_expiry = round(items_total * MEMBER_DISCOUNT + 0.0, 2)
+            if abs(claimed_value - member_plain) <= TOTAL_TOLERANCE:
                 discount_applied = True
+            elif abs(claimed_value - member_expiry) <= TOTAL_TOLERANCE:
+                discount_applied = True
+            elif abs(claimed_value - items_plain) <= TOTAL_TOLERANCE:
+                pass
+            elif abs(claimed_value - items_total) <= TOTAL_TOLERANCE:
+                pass
             else:
                 return json_reply({
                     "ok": False,
                     "message": "收银端报的总额 %.2f 与明细 %.2f 对不上，"
-                               "没有下单，请刷新后重试" % (claimed_value, plain),
+                               "没有下单，请刷新后重试" % (claimed_value, items_plain),
                     "msg": "金额校验失败",
                 }, 400)
 
@@ -952,22 +968,27 @@ class ExtRouter(object):
             return json_reply({"ok": False, "message": message, "msg": message}, 400)
 
         order = self.store.get_order(order_id)
-        if discount_applied and order:
-            final = round(order["total"] * MEMBER_DISCOUNT + 0.0, 2)
-            with self.store.lock:
-                with self.store._conn as conn:
-                    conn.execute("UPDATE orders SET total=? WHERE id=?", (final, order_id))
-                    self.store._log(conn, "checkout.member_discount",
-                                    "订单 #%s 应用会员 95 折：%.2f -> %.2f"
-                                    % (order_id, order["total"], final), req.operator)
-            order = self.store.get_order(order_id)
-        elif order and abs(order["total"] - items_total) > TOTAL_TOLERANCE:
+        if order and claimed is not None:
+            # 订单金额以**已通过校验的**收银端口径为准 —— 会员折扣、临期折扣
+            # 都在这里落地；store.checkout() 内部只会按原价建单。
+            final = claimed_value
+            if abs(order["total"] - final) > TOTAL_TOLERANCE:
+                with self.store.lock:
+                    with self.store._conn as conn:
+                        conn.execute("UPDATE orders SET total=? WHERE id=?",
+                                     (final, order_id))
+                        self.store._log(conn, "checkout.price_adjusted",
+                                        "订单 #%s 金额按收银端口径修正：%.2f -> %.2f"
+                                        % (order_id, order["total"], final),
+                                        req.operator)
+                order = self.store.get_order(order_id)
+        elif order and abs(order["total"] - items_plain) > TOTAL_TOLERANCE:
             # 理论上到不了这里；到了就说明我的预估口径和 checkout 不一致，得留痕
             with self.store.lock:
                 with self.store._conn as conn:
                     self.store._log(conn, "checkout.total_mismatch",
                                     "订单 #%s 实际 %.2f，预估 %.2f"
-                                    % (order_id, order["total"], items_total), req.operator)
+                                    % (order_id, order["total"], items_plain), req.operator)
 
         # 页面读的是 d.orderId
         return json_reply({"ok": True, "message": message, "msg": message,
@@ -978,7 +999,9 @@ class ExtRouter(object):
     def _parse_items(self, items_text):
         """`可口可乐 330mlx2, 乐事薯片 75gx1` -> [(code, qty), ...]"""
         catalog = {}
-        for product in self.store.list_products():
+        # 这里要**包含**过期商品：先让它能被解析出来，好在结算时给出
+        # 「商品已过期」的明确错误，而不是含糊的「认不出这些商品」。
+        for product in self.store.list_products(include_expired=True):
             catalog[product["name"]] = product["code"]
         parsed = []
         unknown = []
